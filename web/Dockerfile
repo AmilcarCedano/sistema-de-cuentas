@@ -6,6 +6,8 @@ COPY . .
 
 # Modificaremos la variable de entorno en tiempo de build o usaremos relative path
 # Vite sustituirá import.meta.env.VITE_API_URL
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # Servidor estático con Nginx

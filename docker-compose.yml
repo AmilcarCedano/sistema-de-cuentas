@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  sistemacuentas-mysql:
+    image: mysql:8.0
+    container_name: sistemacuentas-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword # (Cambiar en prod)
+      MYSQL_DATABASE: sistema_cuentas
+    ports:
+      - "3307:3306" # Expuesto interno (en otra db de dokploy era cbmedic-mysql)
+    volumes:
+      - sistemacuentas_db_data:/var/lib/mysql
+    networks:
+      - sistemacuentas_net
+
+  sistemacuentas-backend:
+    build: 
+      context: ./server
+    container_name: sistemacuentas-backend
+    restart: always
+    environment:
+      - DATABASE_URL=mysql://root:rootpassword@sistemacuentas-mysql:3306/sistema_cuentas
+      - PORT=3001
+    depends_on:
+      - sistemacuentas-mysql
+    networks:
+      - sistemacuentas_net
+      # Agregamos la red de dokploy para integrarlo con Traefik via subdominio interno si es necesario, 
+      # pero el frontend es el que irá al público.
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sistema-cuentas-api.rule=Host(`api-sistema-cuentas.72.60.13.187.sslip.io`)"
+      - "traefik.http.routers.sistema-cuentas-api.entrypoints=websecure"
+      - "traefik.http.routers.sistema-cuentas-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.sistema-cuentas-api.loadbalancer.server.port=3001"
+
+  sistemacuentas-frontend:
+    build: 
+      context: ./web
+      args:
+        - VITE_API_URL=https://api-sistema-cuentas.72.60.13.187.sslip.io/api
+    container_name: sistemacuentas-frontend
+    restart: always
+    environment:
+      # Definimos el base path en build time (requerirá un refactor del Dockerfile si usa VITE_ en runtime)
+      - VITE_API_URL=https://api-sistema-cuentas.72.60.13.187.sslip.io/api
+    depends_on:
+      - sistemacuentas-backend
+    networks:
+      - sistemacuentas_net
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sistema-cuentas-web.rule=Host(`sistema-cuentas.72.60.13.187.sslip.io`)"
+      - "traefik.http.routers.sistema-cuentas-web.entrypoints=websecure"
+      - "traefik.http.routers.sistema-cuentas-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.sistema-cuentas-web.loadbalancer.server.port=80"
+
+volumes:
+  sistemacuentas_db_data:
+
+networks:
+  sistemacuentas_net:
+    driver: bridge
+  dokploy-network:
+    external: true
