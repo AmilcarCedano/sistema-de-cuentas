@@ -1,0 +1,14 @@
+-- AlterTable
+ALTER TABLE `cuenta` ADD COLUMN `color` VARCHAR(191) NOT NULL DEFAULT '#3b82f6',
+    ADD COLUMN `orden` INTEGER NOT NULL DEFAULT 0;
+
+-- CreateTable
+CREATE TABLE `Nota` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `contenido` TEXT NOT NULL,
+    `color` VARCHAR(191) NULL DEFAULT '#fcd34d',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

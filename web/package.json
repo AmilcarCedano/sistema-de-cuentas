@@ -1,0 +1,34 @@
+{
+  "name": "sistema-cuentas-web",
+  "version": "1.0.0",
+  "description": "Frontend React + Vite - Sistema de Cuentas",
+  "main": "src/main.jsx",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "cuentas",
+    "finanzas"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "date-fns": "^2.30.0",
+    "lucide-react": "^1.8.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-icons": "^4.12.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.3.0",
+    "vite": "^5.0.0"
+  }
+}

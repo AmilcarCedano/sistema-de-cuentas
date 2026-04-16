@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Cuenta {
+  id              Int     @id @default(autoincrement())
+  nombre          String
+  color           String  @default("#3b82f6")
+  orden           Int     @default(0)
+  estado          String  @default("activa")
+  incluirEnKpis   Boolean @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  transacciones   Transaccion[]
+  grupos          Grupo[]
+  saldosManuales  SaldoManual[]
+
+  @@index([createdAt])
+}
+
+model SaldoManual {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  monto     Float
+  cuentaId  Int
+  cuenta    Cuenta   @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+}
+
+model Grupo {
+  id              Int           @id @default(autoincrement())
+  nombre          String
+  color           String        @default("#3b82f6")
+  orden           Int           @default(0)
+  cuentaId        Int
+  cuenta          Cuenta        @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  transacciones   Transaccion[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([cuentaId])
+}
+
+model Transaccion {
+  id          Int      @id @default(autoincrement())
+  titulo      String
+  monto       Float
+  tipo        String   // "ingreso" o "egreso"
+  comentario  String?  @db.Text
+  fecha       DateTime @default(now())
+  orden       Int      @default(0)
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  cuentaId    Int
+  cuenta      Cuenta   @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  
+  grupoId     Int?
+  grupo       Grupo?   @relation(fields: [grupoId], references: [id], onDelete: SetNull)
+
+  @@index([cuentaId])
+  @@index([grupoId])
+  @@index([fecha])
+}
+
+model Nota {
+  id        Int      @id @default(autoincrement())
+  contenido String   @db.Text
+  color     String?  @default("#fcd34d")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

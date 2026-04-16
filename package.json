@@ -1,0 +1,32 @@
+{
+  "name": "sistema_cuentas",
+  "version": "1.0.0",
+  "description": "Sistema de gestión de ingresos y egresos",
+  "main": "index.js",
+  "scripts": {
+    "web-dev": "cd web && npm install && npm run dev",
+    "server-migrate": "cd server && npm install && npm run prisma:migrate",
+    "server-push": "cd server && npm install && npm run prisma:push",
+    "server-studio": "cd server && npm install && npm run prisma:studio",
+    "build": "cd web && npm run build",
+    "start": "cd web && npm start"
+  },
+  "keywords": [
+    "cuentas",
+    "finanzas",
+    "ingresos",
+    "egresos"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^7.7.0",
+    "mysql2": "^3.22.0",
+    "next": "^16.2.3",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  }
+}
