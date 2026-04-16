@@ -32,6 +32,7 @@ services:
       - dokploy-network
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
       - "traefik.http.routers.sistema-cuentas-api.rule=Host(`api-sistema-cuentas.72.60.13.187.sslip.io`)"
       - "traefik.http.routers.sistema-cuentas-api.entrypoints=websecure"
       - "traefik.http.routers.sistema-cuentas-api.tls.certresolver=letsencrypt"
@@ -54,6 +55,7 @@ services:
       - dokploy-network
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
       - "traefik.http.routers.sistema-cuentas-web.rule=Host(`sistema-cuentas.72.60.13.187.sslip.io`)"
       - "traefik.http.routers.sistema-cuentas-web.entrypoints=websecure"
       - "traefik.http.routers.sistema-cuentas-web.tls.certresolver=letsencrypt"
