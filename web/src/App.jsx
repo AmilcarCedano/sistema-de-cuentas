@@ -827,7 +827,7 @@ const App = () => {
                   {hasManual && (
                      <Accordion title="Auditoría de Arqueo" icon={ShieldCheck} open={uiState.accAudit} onToggle={() => setUiState(s => ({...s, accAudit: !s.accAudit}))}>
                          <div className="space-y-6 mt-2">
-                             <div className="bg-[#141824] rounded-3xl p-2 border border-white/5">
+                             <div className="bg-[#141824] rounded-3xl p-2 border border-white/5 max-h-[300px] overflow-y-auto custom-scrollbar">
                                  <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-accent/60 px-4 py-3 border-b border-white/5"><span>Saldos Físicos Detectados</span></div>
                                  {c.saldosManuales.map(m => (
                                      <div key={m.id} className="flex justify-between items-center p-4 py-3 last:border-none border-b border-white/5">
@@ -886,7 +886,7 @@ const App = () => {
                     }
                   >
                     {historialMode === 'list' ? (
-                      <div className="space-y-3 mt-2">
+                      <div className="space-y-3 mt-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                         {getSortedTransactions(c.transacciones || [], sortMode).map(tx => (
                           <DraggableRow 
                             key={tx.id} 
@@ -905,7 +905,7 @@ const App = () => {
                         {(c.transacciones || []).length === 0 && <p className="text-[10px] text-white/20 italic text-center py-4">No hay movimientos registrados.</p>}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 px-3 py-2 bg-[#10b981]/10 border border-[#10b981]/20 rounded-xl">
                             <ArrowUpCircle size={16} className="text-[#10b981]" />
