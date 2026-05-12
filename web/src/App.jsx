@@ -5,11 +5,12 @@ import {
   Download, StickyNote, ChevronUp, ChevronDown,
   TrendingUp, TrendingDown, Layers, FolderPlus, Tag, Settings, Clock, Calendar,
   Eye, EyeOff, ShieldCheck, Target, BarChart3, Calculator, ArrowLeftRight, Filter, AlertCircle, CheckCircle,
-  GripVertical, LayoutGrid, ArrowDownAZ, ArrowDown01, RefreshCw, Palette
+  GripVertical, LayoutGrid, ArrowDownAZ, ArrowDown01, RefreshCw, Palette,
+  Lock, Unlock, Bell, Repeat
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
-// Determinación dinámica de API para producción y VPS
-const API = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : `https://api-sistema-cuentas.72.60.13.187.sslip.io/api`);
+// API URL: uses env variable in production, falls back to localhost in dev
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 const CURRENCY = 'S/' 
 const CATEGORY_COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#84cc16','#64748b']
 
@@ -110,19 +111,40 @@ const UnifiedColorPalette = ({ selectedColor, onSelect, savedColors, onAddColor,
     )
 }
 
-// --- DRAGGABLE ROW COMPONENT ---
-const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatDate, onDragStart, onDragOver, onDrop, isDragging }) => {
+// --- DRAGGABLE ROW COMPONENT (desktop drag + mobile touch handle) ---
+const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatDate, onDragStart, onDragOver, onDrop, onMoveUp, onMoveDown, isDragging, isFirst, isLast, onViewNote }) => {
     const f = formatDate(tx.fecha)
     const catColor = tx.grupo?.color
     const isActivo = tx.activo !== false
+    const touchY = useRef(null)
+    const [isSwiping, setIsSwiping] = useState(false)
+
+    // Mobile: touch on grip handle to move up/down
+    const handleGripTouch = (e) => {
+        e.stopPropagation()
+        touchY.current = e.touches[0].clientY
+        setIsSwiping(true)
+    }
+    const handleGripMove = (e) => {
+        if (!isSwiping || touchY.current === null) return
+        e.preventDefault()
+        const dy = e.touches[0].clientY - touchY.current
+        if (Math.abs(dy) > 40) {
+            if (dy < 0 && !isFirst) onMoveUp?.(tx.id)
+            if (dy > 0 && !isLast) onMoveDown?.(tx.id)
+            touchY.current = e.touches[0].clientY
+        }
+    }
+    const handleGripEnd = () => { setIsSwiping(false); touchY.current = null }
     
     return (
         <div 
             draggable={isActivo}
+            data-txid={tx.id}
             onDragStart={(e) => onDragStart(e, tx.id)}
             onDragOver={onDragOver}
             onDrop={(e) => onDrop(e, tx.id)}
-            className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all gap-3 ${isActivo ? 'cursor-grab active:cursor-grabbing hover:border-white/10' : 'cursor-not-allowed opacity-50'} ${isDragging ? 'opacity-50 scale-[0.98]' : ''}`}
+            className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all gap-3 ${isActivo ? 'sm:cursor-grab sm:active:cursor-grabbing hover:border-white/10' : 'cursor-not-allowed opacity-50'} ${isDragging || isSwiping ? 'opacity-60 scale-[0.98] ring-2 ring-accent/50' : ''}`}
             style={{ 
                 backgroundColor: isActivo ? (catColor ? `${catColor}12` : 'rgba(255,255,255,0.03)') : 'rgba(0,0,0,0.3)',
                 borderColor: isActivo ? (catColor ? `${catColor}25` : 'transparent') : 'rgba(255,255,255,0.1)',
@@ -131,7 +153,17 @@ const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatD
             }}
         >
             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                {isActivo && <GripVertical size={14} className="text-white/20 flex-shrink-0" />}
+                {isActivo && (
+                    <div 
+                        className="flex-shrink-0 p-1.5 rounded-xl bg-white/5 active:bg-accent/20 transition-all cursor-grab active:cursor-grabbing select-none"
+                        style={{ touchAction: 'none' }}
+                        onTouchStart={handleGripTouch}
+                        onTouchMove={handleGripMove}
+                        onTouchEnd={handleGripEnd}
+                    >
+                        <GripVertical size={16} className={`${isSwiping ? 'text-accent' : 'text-white/25'}`} />
+                    </div>
+                )}
                 <div className={`text-[10px] sm:text-[12px] font-black uppercase tracking-widest flex-shrink-0 ${isActivo ? (tx.tipo === 'ingreso' ? 'text-[#10b981]' : 'text-[#ef4444]') : 'text-white/30'}`}>
                     {tx.tipo === 'ingreso' ? 'ING' : 'EGR'}
                 </div>
@@ -150,7 +182,7 @@ const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatD
             </div>
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 {tx.comentario && isActivo && (
-                    <button onClick={() => alert(tx.comentario)} className="p-1.5 sm:p-2 bg-white/5 text-white/40 hover:text-warning rounded-xl transition-all" title="Ver nota">
+                    <button onClick={() => onViewNote?.({ titulo: tx.titulo, comentario: tx.comentario, tipo: tx.tipo, grupo: tx.grupo, fecha: tx.fecha })} className="p-1.5 sm:p-2 bg-amber-400/10 text-amber-400/60 hover:text-amber-400 hover:bg-amber-400/20 rounded-xl transition-all" title="Ver nota">
                         <StickyNote size={14} />
                     </button>
                 )}
@@ -188,7 +220,7 @@ const App = () => {
   const [sortMode, setSortMode] = useState('custom') // 'custom' | 'date' | 'category'
   const [draggedId, setDraggedId] = useState(null)
 
-  const [uiState, setUiState] = useState({ homeStats: true, homeNotes: true, accStats: true, accAudit: true, accHistory: true, accCategories: false })
+  const [uiState, setUiState] = useState({ homeStats: true, homeNotes: true, homePagos: true, accStats: true, accAudit: true, accHistory: true, accCategories: false, accPagos: false })
 
   // Modals
   const [isAccountModal, setIsAccountModal] = useState(false)
@@ -204,8 +236,17 @@ const App = () => {
   const [isNoteModal, setIsNoteModal] = useState(false)
   const [noteForm, setNoteForm] = useState({ id: null, contenido: '', color: '#fcd34d' })
 
+  // View-note modal (read-only, from Historial)
+  const [viewNoteModal, setViewNoteModal] = useState(false)
+  const [viewNoteData, setViewNoteData] = useState(null)
+  const handleViewNote = (data) => { setViewNoteData(data); setViewNoteModal(true) }
+
   const [isExportModal, setShowExportModal] = useState(false)
   const [exportAccountId, setExportAccountId] = useState("all")
+
+  const [isPagoModal, setIsPagoModal] = useState(false)
+  const [pagoMode, setPagoMode] = useState('create')
+  const [pagoForm, setPagoForm] = useState({ id: '', nombre: '', monto: '', diaPago: '', comentario: '', cuentaId: '', grupoId: '' })
 
   // Category inline form
   const [catFormOpen, setCatFormOpen] = useState(null)
@@ -325,6 +366,41 @@ const App = () => {
     }
 
     setDraggedId(null)
+  }
+
+  // Move up/down (mobile) - swap with adjacent item
+  const handleMoveItem = async (txId, direction) => {
+    const cuenta = cuentas.find(c => c.id === selectedAccountId)
+    if (!cuenta) return
+    const txs = [...getSortedTransactions(cuenta.transacciones || [], sortMode)]
+    const idx = txs.findIndex(t => t.id === txId)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= txs.length) return
+    ;[txs[idx], txs[swapIdx]] = [txs[swapIdx], txs[idx]]
+    setCuentas(prev => prev.map(c => {
+      if (c.id === selectedAccountId) return { ...c, transacciones: txs.map((t, i) => ({ ...t, orden: i })) }
+      return c
+    }))
+    const ordenes = txs.map((t, i) => ({ id: t.id, orden: i }))
+    try {
+      await fetch(`${API}/cuentas/${selectedAccountId}/transacciones/reorder`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ordenes })
+      })
+    } catch (e) { await cargarCuentas() }
+  }
+
+  // Lock/Unlock account
+  const handleToggleLock = async (accountId, lock) => {
+    if (lock && !confirm('¿Finalizar y bloquear esta cuenta? No podrás agregar movimientos hasta desbloquearla.')) return
+    setCuentas(prev => prev.map(c => c.id === accountId ? { ...c, estado: lock ? 'cerrada' : 'activa', fechaCierre: lock ? new Date().toISOString() : null } : c))
+    try {
+      await fetch(`${API}/cuentas/${accountId}/lock`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locked: lock })
+      })
+      await cargarCuentas()
+    } catch (e) { setSyncError('Error sincronizando'); await cargarCuentas() }
   }
 
   // --- HANDLERS ---
@@ -494,81 +570,99 @@ const App = () => {
     }
   }
 
-  // --- EXCEL EXPORT ---
-  const exportAllToExcel = (targetAccountId = null) => {
-    const wb = XLSX.utils.book_new()
+  // --- PAGOS MENSUALES ---
+  const handleSavePago = async () => {
+    const cid = pagoForm.cuentaId || selectedAccountId
+    if (!cid) return alert('Selecciona una cuenta')
+    const data = { nombre: pagoForm.nombre, monto: pagoForm.monto, diaPago: pagoForm.diaPago, comentario: pagoForm.comentario || '', grupoId: pagoForm.grupoId || null }
+    const url = pagoMode === 'create' ? `${API}/cuentas/${cid}/pagos-mensuales` : `${API}/pagos-mensuales/${pagoForm.id}`
+    const method = pagoMode === 'create' ? 'POST' : 'PUT'
+    setIsPagoModal(false)
+    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pagoMode === 'edit' ? { ...data, cuentaId: cid } : data) })
+    await cargarCuentas()
+  }
+
+  const handleDeletePago = async (pagoId) => {
+    if (!confirm('¿Eliminar este pago mensual?')) return
+    await fetch(`${API}/pagos-mensuales/${pagoId}`, { method: 'DELETE' })
+    await cargarCuentas()
+  }
+
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  
+  const getMesKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+  const getMesSiguiente = (mesKey) => {
+    const [a, m] = mesKey.split('-').map(Number)
+    return m === 12 ? `${a + 1}-01` : `${a}-${String(m + 1).padStart(2, '0')}`
+  }
+  const getMesNombre = (mesKey) => {
+    if (!mesKey) return ''
+    const [a, m] = mesKey.split('-').map(Number)
+    return `${MESES[m - 1]} ${a}`
+  }
+
+  const handlePayPago = async (pago, targetCuentaId) => {
+    const hoy = new Date()
+    const mesActualKey = getMesKey(hoy)
+    const yaPagadoEsteMes = pago.mesPagado === mesActualKey
+    const mesObjetivo = yaPagadoEsteMes ? getMesSiguiente(mesActualKey) : mesActualKey
+    const mesNombre = getMesNombre(mesObjetivo)
     
-    const cuentasToExport = targetAccountId 
-        ? cuentas.filter(c => String(c.id) === String(targetAccountId))
-        : cuentas
-        
-    cuentasToExport.forEach(cuenta => {
-      let activeTxs = (cuenta.transacciones || []).filter(t => t.activo !== false)
-      activeTxs = activeTxs.sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-      
-      const ingresos = activeTxs.filter(t => t.tipo === 'ingreso')
-      const egresos = activeTxs.filter(t => t.tipo === 'egreso')
-      
-      const sumInc = ingresos.reduce((s, t) => s + t.monto, 0)
-      const sumExp = egresos.reduce((s, t) => s + t.monto, 0)
-      const net = sumInc - sumExp
-      
-      const aoa = []
-      
-      aoa.push([`REPORTE DE BILLETERA: ${cuenta.nombre}`])
-      aoa.push([])
-      
-      // TABLA DE INGRESOS
-      aoa.push(['--- TABLA DE INGRESOS ---'])
-      aoa.push(['Fecha', 'Hora', 'Categoría', 'Concepto', 'Nota', 'Monto'])
-      ingresos.forEach(t => {
-        aoa.push([formatDate(t.fecha).date, formatDate(t.fecha).time, t.grupo?.nombre || 'Sin categoría', t.titulo, t.comentario || '', t.monto])
-      })
-      aoa.push(['', '', '', '', 'TOTAL INGRESOS:', sumInc])
-      aoa.push([])
-      aoa.push([])
-      
-      // TABLA DE EGRESOS
-      aoa.push(['--- TABLA DE EGRESOS ---'])
-      aoa.push(['Fecha', 'Hora', 'Categoría', 'Concepto', 'Nota', 'Monto'])
-      egresos.forEach(t => {
-        aoa.push([formatDate(t.fecha).date, formatDate(t.fecha).time, t.grupo?.nombre || 'Sin categoría', t.titulo, t.comentario || '', t.monto])
-      })
-      aoa.push(['', '', '', '', 'TOTAL EGRESOS:', sumExp])
-      aoa.push([])
-      aoa.push([])
-      
-      // RESUMEN FINAL
-      aoa.push(['--- RESUMEN FINAL ---'])
-      aoa.push(['Total de Ganancias', sumInc])
-      aoa.push(['Total de Gastos', sumExp])
-      aoa.push(['Monto Real (Neto)', net])
-      
-      const ws = XLSX.utils.aoa_to_sheet(aoa)
-      
-      // Añadir anchos de columna para que se vea bien
-      ws['!cols'] = [{wch: 12}, {wch: 10}, {wch: 20}, {wch: 30}, {wch: 35}, {wch: 15}]
-      
-      const cuentaName = cuenta.nombre.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 31) || 'Cuenta'
-      XLSX.utils.book_append_sheet(wb, ws, cuentaName)
+    if (!confirm(`¿Registrar pago de ${CURRENCY}${pago.monto} por "${pago.nombre}" para ${mesNombre}?`)) return
+    await fetch(`${API}/pagos-mensuales/${pago.id}/pagar`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cuentaId: targetCuentaId || pago.cuentaId, mesObjetivo })
     })
-    
-    // Si no hay cuentas, crear una hoja vacía para que no falle
-    if (cuentas.length === 0) {
-        const wsEmpty = XLSX.utils.aoa_to_sheet([['No hay cuentas registradas']])
-        XLSX.utils.book_append_sheet(wb, wsEmpty, 'Vacio')
+    await cargarCuentas()
+  }
+
+  const handleEditPago = (pago) => {
+    setPagoMode('edit')
+    setPagoForm({ id: pago.id, nombre: pago.nombre, monto: pago.monto, diaPago: pago.diaPago, comentario: pago.comentario || '', cuentaId: pago.cuentaId, grupoId: pago.grupoId || '' })
+    setIsPagoModal(true)
+  }
+
+  // Get upcoming/overdue monthly payments for notifications
+  const pagosProximos = useMemo(() => {
+    const hoy = new Date()
+    const diaHoy = hoy.getDate()
+    const mesActualKey = getMesKey(hoy)
+    const allPagos = []
+    cuentas.forEach(c => {
+      (c.pagosMensuales || []).filter(p => p.activo).forEach(p => {
+        const yaPagadoEsteMes = p.mesPagado === mesActualKey
+        const diasParaPago = p.diaPago >= diaHoy ? p.diaPago - diaHoy : 0
+        const esProximo = diasParaPago <= 5 && diasParaPago >= 0
+        const esVencido = p.diaPago < diaHoy && !yaPagadoEsteMes
+        const mesObjetivo = yaPagadoEsteMes ? getMesSiguiente(mesActualKey) : mesActualKey
+        if (!yaPagadoEsteMes && (esProximo || esVencido)) {
+          allPagos.push({ ...p, cuentaNombre: c.nombre, cuentaColor: c.color, esVencido, diasParaPago, mesObjetivo })
+        }
+      })
+    })
+    return allPagos.sort((a, b) => a.diaPago - b.diaPago)
+  }, [cuentas])
+
+  // --- EXCEL EXPORT (server-side premium report) ---
+  const exportAllToExcel = async (targetAccountId = null) => {
+    try {
+      const url = targetAccountId ? `${API}/export/excel?accountId=${targetAccountId}` : `${API}/export/excel`
+      const resp = await fetch(url)
+      if (!resp.ok) throw new Error('Error descargando')
+      const blob = await resp.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = 'Reporte_FinControl.xlsx'
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch (e) {
+      console.error('Export error:', e)
+      alert('Error al generar el reporte. Intenta de nuevo.')
     }
-    
-    XLSX.writeFile(wb, "Reporte_FinControl.xlsx")
   }
 
   const handleExportWithPrompt = () => {
     setShowExportModal(true)
-  }
-
-  const handleExportExcel = (sortBy) => {
-    exportAllToExcel(sortBy)
-    setShowExportModal(false)
   }
 
   // --- SORT HELPERS ---
@@ -720,6 +814,79 @@ const App = () => {
           ))}
         </div>
       </section>
+
+      {/* ── PAGOS MENSUALES ── */}
+      <section className="px-2">
+        <div className="flex justify-between items-center mb-4 mt-6">
+          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[#aab3cc] flex items-center gap-2"><Repeat size={14} className="text-purple-400" /> Pagos Mensuales</h3>
+        </div>
+
+        {pagosProximos.length > 0 && (
+          <div className="space-y-3 mb-4">
+            {pagosProximos.map(p => (
+              <div key={p.id} className={`p-5 rounded-[28px] border ${p.esVencido ? 'border-red-500/30 bg-red-500/5' : 'border-yellow-500/30 bg-yellow-500/5'} animate-slide-down`}>
+                <div className="flex items-start gap-3">
+                  <div className={`p-2.5 rounded-2xl flex-shrink-0 ${p.esVencido ? 'bg-red-500/20' : 'bg-yellow-500/20'}`}>
+                    <Bell size={18} className={p.esVencido ? 'text-red-400' : 'text-yellow-400'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${p.esVencido ? 'text-red-400' : 'text-yellow-400'}`}>
+                      {p.esVencido ? '⚠️ PAGO VENCIDO' : `📅 Paga en ${p.diasParaPago} día${p.diasParaPago !== 1 ? 's' : ''}`}
+                    </p>
+                    <p className="text-sm font-bold text-white/90 mt-1">{p.nombre}</p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <span className="text-[9px] font-black text-white/30 uppercase">Día {p.diaPago} · {p.cuentaNombre}</span>
+                      <Amount val={p.monto} incognito={incognito} className="text-sm font-black text-[#ef4444]" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button onClick={() => handlePayPago(p)} className={`px-4 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 ${p.esVencido ? 'bg-red-500 text-white shadow-lg' : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'}`}>
+                      Pagar {getMesNombre(p.mesObjetivo).split(' ')[0]}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* All monthly payments list */}
+        <Accordion title={`Todos los Pagos (${cuentas.reduce((s, c) => s + (c.pagosMensuales || []).length, 0)})`} icon={Repeat} open={uiState.homePagos} onToggle={() => setUiState(s => ({...s, homePagos: !s.homePagos}))}>
+          <div className="space-y-2 mt-2">
+            {cuentas.flatMap(c => (c.pagosMensuales || []).map(p => ({ ...p, cuentaNombre: c.nombre, cuentaColor: c.color }))).length === 0 && (
+              <p className="text-[10px] text-white/20 italic text-center py-4">No hay pagos mensuales configurados.</p>
+            )}
+            {cuentas.flatMap(c => (c.pagosMensuales || []).map(p => ({ ...p, cuentaNombre: c.nombre, cuentaColor: c.color }))).map(p => {
+              const mesActualKey = getMesKey(new Date())
+              const yaPagado = p.mesPagado === mesActualKey
+              const mesSigKey = getMesSiguiente(mesActualKey)
+              return (
+                <div key={p.id} className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-4 rounded-2xl border transition-all gap-2 ${yaPagado ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 bg-white/3'}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.cuentaColor }}></div>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-bold ${p.activo ? 'text-white/90' : 'text-white/30 line-through'}`}>{p.nombre}</p>
+                      <p className="text-[8px] font-black text-white/20 uppercase">
+                        Día {p.diaPago} · {p.cuentaNombre}
+                        {p.mesPagado ? ` · ✅ Pagado ${getMesNombre(p.mesPagado)}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Amount val={p.monto} incognito={incognito} className="text-sm font-black text-[#ef4444]" />
+                    <button onClick={() => handleEditPago(p)} className="p-1.5 bg-white/5 text-white/30 hover:text-white rounded-lg transition-all"><Edit3 size={12} /></button>
+                    {p.activo && (
+                      <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[9px] font-black uppercase rounded-lg hover:bg-purple-500/30 transition-all">
+                        {yaPagado ? `Pagar ${getMesNombre(mesSigKey).split(' ')[0]}` : `Pagar ${getMesNombre(mesActualKey).split(' ')[0]}`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Accordion>
+      </section>
     </div>
   )
 
@@ -737,15 +904,26 @@ const App = () => {
           const hasManual = (c.saldosManuales || []).length > 0
           const totalManual = hasManual ? c.saldosManuales.reduce((s, m) => s + m.monto, 0) : 0
           const localDiff = totalManual - sm.net
+          const isCerrada = c.estado === 'cerrada'
           
           return (
-            <div key={c.id} className={`rounded-[40px] border transition-all duration-300 ${isSelected ? 'border-accent bg-[#1a1f2e] shadow-2xl mt-4 mb-8 scale-[1.01]' : 'border-white/5 bg-[#141824] hover:bg-[#1a1f2e] shadow-md'}`}>
+            <div key={c.id} className={`rounded-[40px] border transition-all duration-300 ${isCerrada ? 'border-yellow-500/30 bg-[#1a1a10]' : ''} ${isSelected ? 'border-accent bg-[#1a1f2e] shadow-2xl mt-4 mb-8 scale-[1.01]' : !isCerrada ? 'border-white/5 bg-[#141824] hover:bg-[#1a1f2e] shadow-md' : ''}`}>
               <div className="p-8 flex items-center justify-between cursor-pointer" onClick={() => handleSelectAccount(c.id)}>
                 <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 rounded-[24px] flex items-center justify-center shadow-lg border border-white/10 text-white" style={{ backgroundColor: c.color }}><Wallet size={30} /></div>
+                    <div className="relative">
+                      <div className={`w-16 h-16 rounded-[24px] flex items-center justify-center shadow-lg border text-white ${isCerrada ? 'border-yellow-500/30 opacity-60' : 'border-white/10'}`} style={{ backgroundColor: c.color }}><Wallet size={30} /></div>
+                      {isCerrada && <div className="absolute -bottom-1 -right-1 bg-yellow-500 p-1.5 rounded-full shadow-lg"><Lock size={12} className="text-black" /></div>}
+                    </div>
                     <div>
-                        <h3 className="font-black text-2xl tracking-tighter text-white">{c.nombre}</h3>
-                        <div className="mt-1.5"><Amount val={sm.net} incognito={incognito} className={`text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest bg-white/5 ${sm.net >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`} /></div>
+                        <h3 className={`font-black text-2xl tracking-tighter ${isCerrada ? 'text-white/50' : 'text-white'}`}>{c.nombre}</h3>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <Amount val={sm.net} incognito={incognito} className={`text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest bg-white/5 ${sm.net >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`} />
+                          {isCerrada && (
+                            <span className="text-[8px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest bg-yellow-500/15 text-yellow-400 flex items-center gap-1.5">
+                              <Lock size={9} /> Cerrada {c.fechaCierre ? `· ${new Date(c.fechaCierre).toLocaleDateString()}` : ''}
+                            </span>
+                          )}
+                        </div>
                     </div>
                 </div>
                 <ChevronDown size={28} className={`text-text-muted transition-transform duration-500 ${isSelected ? 'rotate-180 text-accent' : ''}`} />
@@ -753,15 +931,38 @@ const App = () => {
 
               {isSelected && (
                 <div className="px-4 sm:px-8 pb-8 space-y-4">
+                  {isCerrada && (
+                    <div className="flex items-center gap-3 p-5 bg-yellow-500/10 border border-yellow-500/20 rounded-3xl animate-slide-down">
+                      <Lock size={20} className="text-yellow-400 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-[11px] font-black text-yellow-400 uppercase">Cuenta Finalizada</p>
+                        <p className="text-[10px] text-yellow-400/60 mt-0.5">Cerrada el {c.fechaCierre ? new Date(c.fechaCierre).toLocaleString() : 'fecha desconocida'}. No se pueden agregar movimientos.</p>
+                      </div>
+                      <button onClick={() => handleToggleLock(c.id, false)} className="px-4 py-2.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-[9px] font-black uppercase tracking-widest rounded-2xl transition-all flex items-center gap-1.5 flex-shrink-0">
+                        <Unlock size={12} /> Desbloquear
+                      </button>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 gap-3 p-3 bg-white/5 rounded-3xl mb-6">
-                    <div className="flex gap-3">
-                        <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'egreso', comentario: '', cuentaId: c.id, grupoId: ''}); setIsTxModal(true) }} className="flex-1 py-4 bg-[#ef4444] text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"><ArrowDownCircle size={18}/> Salida</button>
-                        <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario: '', cuentaId: c.id, grupoId: ''}); setIsTxModal(true) }} className="flex-1 py-4 bg-[#10b981] text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"><ArrowUpCircle size={18}/> Entrada</button>
-                    </div>
-                    <div className="flex gap-3">
-                        <button onClick={() => setIsManualModal(true)} className="flex-1 py-3 bg-accent/10 border border-accent/20 text-accent text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-accent/20 transition-all"><Calculator size={16} className="inline mr-2"/> Saldo Físico</button>
+                    {!isCerrada ? (
+                      <>
+                        <div className="flex gap-3">
+                            <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'egreso', comentario: '', cuentaId: c.id, grupoId: ''}); setIsTxModal(true) }} className="flex-1 py-4 bg-[#ef4444] text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"><ArrowDownCircle size={18}/> Salida</button>
+                            <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario: '', cuentaId: c.id, grupoId: ''}); setIsTxModal(true) }} className="flex-1 py-4 bg-[#10b981] text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"><ArrowUpCircle size={18}/> Entrada</button>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={() => setIsManualModal(true)} className="flex-1 py-3 bg-accent/10 border border-accent/20 text-accent text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-accent/20 transition-all"><Calculator size={16} className="inline mr-2"/> Saldo Físico</button>
+                            <button onClick={() => handleToggleLock(c.id, true)} className="p-3 bg-yellow-500/10 rounded-2xl text-yellow-500/60 hover:text-yellow-500 hover:bg-yellow-500/20 px-5 transition-all" title="Finalizar cuenta"><Lock size={20}/></button>
+                            <button onClick={() => handleDeleteAccount(c.id)} className="p-3 bg-white/5 rounded-2xl text-danger/40 hover:text-danger hover:bg-danger/10 px-5 transition-all"><Trash2 size={20}/></button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex gap-3">
+                        <button onClick={() => handleToggleLock(c.id, false)} className="flex-1 py-4 bg-yellow-500/15 border border-yellow-500/20 text-yellow-400 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-2 hover:bg-yellow-500/25 transition-all"><Unlock size={18}/> Desbloquear Cuenta</button>
                         <button onClick={() => handleDeleteAccount(c.id)} className="p-3 bg-white/5 rounded-2xl text-danger/40 hover:text-danger hover:bg-danger/10 px-6 transition-all"><Trash2 size={20}/></button>
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* ── CATEGORÍAS ── */}
@@ -850,6 +1051,44 @@ const App = () => {
                      </Accordion>
                   )}
 
+                  {/* ── PAGOS MENSUALES ── */}
+                  <Accordion title={`Pagos Mensuales (${(c.pagosMensuales || []).length})`} icon={Repeat} open={uiState.accPagos} onToggle={() => setUiState(s => ({...s, accPagos: !s.accPagos}))}
+                    actions={!isCerrada && <button onClick={(e) => { e.stopPropagation(); setPagoMode('create'); setPagoForm({ id: '', nombre: '', monto: '', diaPago: '', comentario: '', cuentaId: c.id, grupoId: '' }); setIsPagoModal(true) }} className="p-1.5 bg-white/5 rounded-lg text-purple-400 hover:bg-purple-500/20 transition-all"><PlusCircle size={14} /></button>}
+                  >
+                    <div className="space-y-2 mt-2">
+                      {(c.pagosMensuales || []).length === 0 && <p className="text-[10px] text-white/20 italic text-center py-4">Sin pagos mensuales configurados.</p>}
+                      {(c.pagosMensuales || []).map(p => {
+                        const mesActualKey = getMesKey(new Date())
+                        const yaPagado = p.mesPagado === mesActualKey
+                        const mesSigKey = getMesSiguiente(mesActualKey)
+                        return (
+                          <div key={p.id} className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all gap-2 ${yaPagado ? 'border-green-500/20 bg-green-500/5' : p.activo ? 'border-purple-500/15 bg-purple-500/5' : 'border-white/5 bg-white/3 opacity-50'}`}>
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <Repeat size={14} className={`flex-shrink-0 ${yaPagado ? 'text-green-400' : 'text-purple-400'}`} />
+                              <div className="min-w-0">
+                                <p className={`text-sm font-bold ${p.activo ? 'text-white/90' : 'text-white/30 line-through'}`}>{p.nombre}</p>
+                                <p className="text-[8px] font-black text-white/20 uppercase">
+                                  Día {p.diaPago} de cada mes
+                                  {p.mesPagado ? ` · ✅ Pagado ${getMesNombre(p.mesPagado)}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <Amount val={p.monto} incognito={incognito} className="text-sm font-black text-[#ef4444]" />
+                              <button onClick={() => handleEditPago(p)} className="p-1.5 bg-white/5 text-white/30 hover:text-white rounded-lg transition-all"><Edit3 size={12} /></button>
+                              <button onClick={() => handleDeletePago(p.id)} className="p-1.5 bg-white/5 text-white/30 hover:text-[#ef4444] rounded-lg transition-all"><Trash2 size={12} /></button>
+                              {p.activo && !isCerrada && (
+                                <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[9px] font-black uppercase rounded-lg hover:bg-purple-500/30 transition-all">
+                                  {yaPagado ? `Pagar ${getMesNombre(mesSigKey).split(' ')[0]}` : `Pagar ${getMesNombre(mesActualKey).split(' ')[0]}`}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </Accordion>
+
                   {/* ── HISTORIAL WITH SPLIT MODE ── */}
                   <Accordion 
                     title="Historial de Operaciones" 
@@ -887,7 +1126,7 @@ const App = () => {
                   >
                     {historialMode === 'list' ? (
                       <div className="space-y-3 mt-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                        {getSortedTransactions(c.transacciones || [], sortMode).map(tx => (
+                        {getSortedTransactions(c.transacciones || [], sortMode).map((tx, idx, arr) => (
                           <DraggableRow 
                             key={tx.id} 
                             tx={tx} 
@@ -899,7 +1138,12 @@ const App = () => {
                             onDragStart={handleDragStart}
                             onDragOver={handleDragOver}
                             onDrop={handleDrop}
+                            onMoveUp={(id) => handleMoveItem(id, 'up')}
+                            onMoveDown={(id) => handleMoveItem(id, 'down')}
+                            isFirst={idx === 0}
+                            isLast={idx === arr.length - 1}
                             isDragging={draggedId === tx.id}
+                            onViewNote={handleViewNote}
                           />
                         ))}
                         {(c.transacciones || []).length === 0 && <p className="text-[10px] text-white/20 italic text-center py-4">No hay movimientos registrados.</p>}
@@ -1159,6 +1403,144 @@ const App = () => {
                 <Download size={20} className="text-white" />
                 <span className="font-bold text-white">Descargar Excel</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isPagoModal && <Modal title={pagoMode === 'create' ? 'Nuevo Pago Mensual' : 'Editar Pago Mensual'} onClose={() => setIsPagoModal(false)}>
+          <div className="space-y-6">
+              <input autoFocus placeholder="Nombre del pago (Ej: Luz, Agua, Internet...)" className="w-full bg-white/5 border border-white/10 py-6 px-6 rounded-3xl outline-none focus:border-purple-500 transition-all text-white font-bold" value={pagoForm.nombre} onChange={e => setPagoForm({...pagoForm, nombre: e.target.value})} />
+              <div className="grid grid-cols-2 gap-4">
+                  <div className="relative"><span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/30 font-black">{CURRENCY}</span><input type="number" placeholder="0.00" className="w-full bg-white/5 border border-white/10 pl-14 py-6 rounded-3xl font-black text-2xl outline-none text-white focus:border-purple-500" value={pagoForm.monto} onChange={e => setPagoForm({...pagoForm, monto: e.target.value})} /></div>
+                  <div className="relative"><span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/30 text-[10px] font-black uppercase">Día</span><input type="number" min="1" max="31" placeholder="15" className="w-full bg-white/5 border border-white/10 pl-14 py-6 rounded-3xl font-black text-2xl outline-none text-white focus:border-purple-500 text-center" value={pagoForm.diaPago} onChange={e => setPagoForm({...pagoForm, diaPago: e.target.value})} /></div>
+              </div>
+              <textarea placeholder="Comentario opcional..." className="w-full bg-white/5 border border-white/10 p-6 rounded-3xl outline-none focus:border-purple-500 transition-all text-white font-medium text-sm h-24 resize-none" value={pagoForm.comentario} onChange={e => setPagoForm({...pagoForm, comentario: e.target.value})} />
+              
+              {/* Categoría */}
+              {(() => {
+                const cid = pagoForm.cuentaId || selectedAccountId
+                const cta = cuentas.find(b => String(b.id) === String(cid))
+                const grupos = cta?.grupos || []
+                return grupos.length > 0 ? (
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-3">Categoría</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => setPagoForm({...pagoForm, grupoId: ''})} className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all border ${!pagoForm.grupoId ? 'bg-white/10 text-white border-white/20' : 'bg-white/3 text-white/30 border-transparent'}`}>Sin categoría</button>
+                      {grupos.map(g => (
+                        <button key={g.id} onClick={() => setPagoForm({...pagoForm, grupoId: g.id})} className="px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border" style={{
+                          backgroundColor: String(pagoForm.grupoId) === String(g.id) ? `${g.color}25` : 'rgba(255,255,255,0.03)',
+                          color: String(pagoForm.grupoId) === String(g.id) ? g.color : 'rgba(255,255,255,0.3)',
+                          borderColor: String(pagoForm.grupoId) === String(g.id) ? `${g.color}50` : 'transparent'
+                        }}>
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }}></span>
+                          {g.nombre}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              })()}
+
+              {pagoMode === 'edit' && (
+                <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-purple-500" value={pagoForm.cuentaId} onChange={e => setPagoForm({...pagoForm, cuentaId: e.target.value, grupoId: ''})}>
+                    <option value="" className="bg-[#1a1f2e]">--- BILLETERA ---</option>
+                    {cuentas.map(b => <option key={b.id} value={b.id} className="bg-[#1a1f2e]">{b.nombre}</option>)}
+                </select>
+              )}
+
+              {!selectedAccountId && pagoMode === 'create' && (
+                <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-purple-500" value={pagoForm.cuentaId} onChange={e => setPagoForm({...pagoForm, cuentaId: e.target.value, grupoId: ''})}>
+                    <option value="" className="bg-[#1a1f2e]">--- SELECCIONAR BILLETERA ---</option>
+                    {cuentas.map(b => <option key={b.id} value={b.id} className="bg-[#1a1f2e]">{b.nombre}</option>)}
+                </select>
+              )}
+              
+              <button onClick={handleSavePago} className="w-full py-7 bg-purple-600 font-black uppercase tracking-[0.3em] text-[10px] rounded-[35px] text-white shadow-2xl transition-all active:scale-95 hover:brightness-110">{pagoMode === 'create' ? 'Crear Pago Mensual' : 'Guardar Cambios'}</button>
+          </div>
+      </Modal>}
+
+      {/* ── MODAL VER NOTA DE TRANSACCIÓN ── */}
+      {viewNoteModal && viewNoteData && (
+        <div
+          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/85 backdrop-blur-lg animate-fade-in"
+          onClick={() => setViewNoteModal(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-t-[40px] sm:rounded-[40px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.7)] border border-white/10"
+            style={{
+              background: 'linear-gradient(145deg, #1e2336 0%, #141824 100%)',
+              borderTop: `3px solid ${viewNoteData.tipo === 'ingreso' ? '#10b981' : '#ef4444'}`
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-7 pt-7 pb-5 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: viewNoteData.tipo === 'ingreso' ? '#10b98125' : '#ef444425' }}
+                >
+                  <StickyNote size={18} style={{ color: viewNoteData.tipo === 'ingreso' ? '#10b981' : '#ef4444' }} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: viewNoteData.tipo === 'ingreso' ? '#10b981' : '#ef4444' }}>
+                    {viewNoteData.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'} · Nota
+                  </p>
+                  <h3 className="text-base font-black text-white leading-tight truncate">{viewNoteData.titulo}</h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewNoteModal(false)}
+                className="flex-shrink-0 p-2.5 bg-white/5 hover:bg-white/10 rounded-2xl transition-all"
+              >
+                <X size={18} className="text-white/60" />
+              </button>
+            </div>
+
+            {/* Meta: categoría + fecha */}
+            <div className="px-7 pb-4 flex flex-wrap items-center gap-2">
+              {viewNoteData.grupo && (
+                <span
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider"
+                  style={{ backgroundColor: `${viewNoteData.grupo.color}20`, color: viewNoteData.grupo.color }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: viewNoteData.grupo.color }}></span>
+                  {viewNoteData.grupo.nombre}
+                </span>
+              )}
+              {viewNoteData.fecha && (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider bg-white/5 text-white/30">
+                  <Clock size={10} />
+                  {formatDate(viewNoteData.fecha).date} · {formatDate(viewNoteData.fecha).time}
+                </span>
+              )}
+            </div>
+
+            {/* Separador */}
+            <div className="mx-7 h-px bg-white/5 mb-5" />
+
+            {/* Contenido de la nota */}
+            <div className="px-7 pb-8">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/25 mb-3 flex items-center gap-2">
+                <StickyNote size={10} /> Comentario
+              </p>
+              <div
+                className="p-5 rounded-[22px] border border-white/5 leading-relaxed text-sm text-white/80 font-medium whitespace-pre-wrap"
+                style={{
+                  background: viewNoteData.tipo === 'ingreso'
+                    ? 'linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(16,185,129,0.02) 100%)'
+                    : 'linear-gradient(135deg, rgba(239,68,68,0.06) 0%, rgba(239,68,68,0.02) 100%)',
+                  borderColor: viewNoteData.tipo === 'ingreso' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'
+                }}
+              >
+                {viewNoteData.comentario}
+              </div>
+            </div>
+
+            {/* Footer tap-to-close hint */}
+            <div className="pb-6 flex justify-center">
+              <p className="text-[8px] text-white/15 font-medium tracking-widest uppercase">Toca fuera para cerrar</p>
             </div>
           </div>
         </div>

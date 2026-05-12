@@ -1,4 +1,4 @@
-# Sistema de Cuentas - Estructura Reorganizada
+# Sistema de Cuentas - Estructura del Proyecto
 
 Sistema completo de gestión de **ingresos y egresos** con arquitectura modular.
 
@@ -6,41 +6,29 @@ Sistema completo de gestión de **ingresos y egresos** con arquitectura modular.
 
 ```
 SISTEMA_CUENTAS/
-├── web/                      # 🎨 Frontend Next.js + React
-│   ├── app/                  # Rutas y API
-│   │   ├── api/              # Endpoints REST
-│   │   │   ├── ingresos/
-│   │   │   └── egresos/
-│   │   ├── page.js           # Dashboard principal
-│   │   ├── layout.js         # Estructura HTML raíz
-│   │   └── globals.css       # Estilos Tailwind
-│   ├── components/           # Componentes React
-│   │   ├── FormIngreso.js
-│   │   ├── FormEgreso.js
-│   │   ├── ListaIngresos.js
-│   │   ├── ListaEgresos.js
-│   │   └── Resumen.js
-│   ├── lib/
-│   │   └── db.js             # Prisma Client singleton
+├── web/                      # 🎨 Frontend React + Vite
+│   ├── src/
+│   │   ├── App.jsx           # Componente principal (SPA)
+│   │   ├── main.jsx          # Punto de entrada
+│   │   └── index.css         # Estilos globales + Tailwind
 │   ├── public/               # Archivos estáticos
-│   ├── next.config.js
-│   ├── tailwind.config.js
-│   ├── postcss.config.js
-│   └── package.json          # Scripts web
+│   ├── vite.config.js        # Configuración Vite
+│   ├── tailwind.config.js    # Tailwind CSS
+│   ├── Dockerfile            # Docker para producción (Nginx)
+│   ├── nginx.conf            # Config Nginx
+│   └── package.json          # Dependencias frontend
 │
-├── server/                   # 🛠️ Backend + BD
+├── server/                   # 🛠️ Backend Express + Prisma
+│   ├── src/
+│   │   └── server.ts         # API REST completa + Export Excel
 │   ├── prisma/
-│   │   └── schema.prisma     # Esquema de BD
+│   │   └── schema.prisma     # Esquema de BD (MySQL)
 │   ├── .env                  # Variables de BD
-│   ├── .env.local
-│   └── package.json          # Scripts Prisma
+│   ├── Dockerfile            # Docker para producción
+│   └── package.json          # Dependencias backend
 │
 ├── docs/                     # 📚 Documentación
-│   ├── README.md             # Descripción general
-│   ├── SETUP.md              # Guía de instalación
-│   ├── API.md                # Endpoints REST
-│   └── PRISMA.md             # Guía Prisma ORM
-│
+├── docker-compose.yml        # Orquestación Docker + Traefik
 └── package.json              # Scripts raíz
 ```
 
@@ -49,22 +37,22 @@ SISTEMA_CUENTAS/
 ### 1️⃣ Configurar Base de Datos (Primera vez)
 
 ```bash
-# Desde la raíz del proyecto
-npm run server-push
+# Desde la carpeta server/
+npx prisma db push
 ```
 
 Esto crea las tablas en MySQL automáticamente.
 
 ### 2️⃣ Iniciar Desarrollo
 
-**Terminal 1 - Frontend (http://localhost:3000)**
+**Terminal 1 - Backend (http://localhost:3001)**
 ```bash
-npm run web-dev
+cd server && npm run dev
 ```
 
-**Terminal 2 - Prisma Studio (http://localhost:5555)**
+**Terminal 2 - Frontend (http://localhost:5173)**
 ```bash
-npm run server-studio
+cd web && npm run dev
 ```
 
 ## 📋 Scripts Disponibles
@@ -72,95 +60,117 @@ npm run server-studio
 **Desde raíz (SISTEMA_CUENTAS/):**
 
 ```bash
-npm run web-dev           # Inicia frontend en dev (puerto 3000)
+npm run web-dev           # Inicia frontend Vite (puerto 5173)
 npm run server-push       # Crea/actualiza tablas en MySQL
 npm run server-migrate    # Ejecuta Prisma migration
 npm run server-studio     # Abre Prisma Studio (BD visual)
 npm run build             # Compila frontend para producción
-npm run start             # Inicia frontend en producción
 ```
 
 ## 🗄️ Modelos de Datos
 
-### Ingreso
+### Cuenta (Billetera)
 ```prisma
 - id: Int (PK)
-- cantidad: Float
-- descripcion: String
-- categoria: String
-- notas: String? (opcional)
-- fecha: DateTime (auto)
-- createdAt: DateTime (auto)
-- updatedAt: DateTime (auto)
+- nombre: String
+- color: String (default: "#3b82f6")
+- orden: Int
+- estado: String ("activa" | "cerrada")
+- incluirEnKpis: Boolean
+- fechaCierre: DateTime? (fecha de cierre/bloqueo)
+- createdAt, updatedAt
 ```
 
-### Egreso
+### Transaccion
 ```prisma
 - id: Int (PK)
-- cantidad: Float
-- descripcion: String
-- categoria: String
-- notas: String? (opcional)
-- fecha: DateTime (auto)
-- createdAt: DateTime (auto)
-- updatedAt: DateTime (auto)
+- titulo: String
+- monto: Float
+- tipo: String ("ingreso" | "egreso")
+- comentario: String? (Text)
+- fecha: DateTime
+- orden: Int
+- activo: Boolean
+- cuentaId → Cuenta
+- grupoId → Grupo?
+```
+
+### Grupo (Categoría)
+```prisma
+- id: Int (PK)
+- nombre, color, orden
+- cuentaId → Cuenta
+```
+
+### SaldoManual (Arqueo)
+```prisma
+- id, nombre, monto
+- cuentaId → Cuenta
+```
+
+### Nota
+```prisma
+- id, contenido (Text), color
 ```
 
 ## 🔌 API REST
 
-### Ingresos
-- `GET /api/ingresos` - Lista todos
-- `POST /api/ingresos` - Crear nuevo
-- `DELETE /api/ingresos/[id]` - Eliminar
+### Cuentas
+- `GET    /api/cuentas` - Lista todas (con transacciones, grupos, saldos)
+- `POST   /api/cuentas` - Crear nueva
+- `PUT    /api/cuentas/:id` - Actualizar
+- `DELETE /api/cuentas/:id` - Eliminar (cascade)
+- `PATCH  /api/cuentas/:id/lock` - Bloquear/Desbloquear cuenta
 
-### Egresos
-- `GET /api/egresos` - Lista todos
-- `POST /api/egresos` - Crear nuevo
-- `DELETE /api/egresos/[id]` - Eliminar
+### Transacciones
+- `POST   /api/cuentas/:id/transacciones` - Crear
+- `PUT    /api/transacciones/:id` - Actualizar
+- `DELETE /api/transacciones/:id` - Eliminar
+- `PUT    /api/cuentas/:id/transacciones/reorder` - Reordenar (batch)
+- `PATCH  /api/transacciones/:id/activo` - Activar/Desactivar
 
-## 🎨 Componentes React
+### Grupos
+- `POST   /api/cuentas/:id/grupos` - Crear categoría
+- `DELETE /api/grupos/:id` - Eliminar categoría
 
-| Componente | Descripción |
-|---|---|
-| **FormIngreso** | Formulario para registrar ingresos |
-| **FormEgreso** | Formulario para registrar egresos |
-| **ListaIngresos** | Tabla de ingresos con opción eliminar |
-| **ListaEgresos** | Tabla de egresos con opción eliminar |
-| **Resumen** | Tarjetas con totales e ingresos vs egresos |
+### Saldos Manuales
+- `POST   /api/cuentas/:id/saldos` - Agregar saldo físico
+- `DELETE /api/saldos/:id` - Eliminar
 
-## 🔧 Configuración BD
+### Notas
+- `GET    /api/notas` - Listar
+- `POST   /api/notas` - Crear
+- `PUT    /api/notas/:id` - Actualizar
+- `DELETE /api/notas/:id` - Eliminar
 
-**Archivo:** `server/.env`
+### Exportación
+- `GET    /api/export/excel?accountId=` - Descargar reporte Excel premium
 
+## 🔧 Configuración
+
+**Backend:** `server/.env`
 ```env
 DATABASE_URL="mysql://root:Almi@localhost:3306/sistema_cuentas"
 ```
 
-- **Host:** localhost
-- **Puerto:** 3306
-- **Usuario:** root
-- **Contraseña:** Almi
-- **BD:** sistema_cuentas
+**Frontend:** `web/.env` (opcional)
+```env
+VITE_API_URL=http://localhost:3001/api
+```
 
-## 📚 Documentación Completa
+En producción se configura via `docker-compose.yml`.
 
-- [SETUP.md](docs/SETUP.md) - Instalación detallada
-- [API.md](docs/API.md) - Endpoints con ejemplos
-- [PRISMA.md](docs/PRISMA.md) - Guía ORM
+## ✅ Funcionalidades
 
-## ✅ Estado
-
-- ✅ Estructura frontend (Next.js + React)
-- ✅ Componentes completos (5 componentes)
-- ✅ API REST (6 endpoints)
-- ✅ Esquema Prisma
-- ✅ Tailwind CSS
-- 🟡 BD: Ejecutar `npm run server-push` para crear tablas
-- 🟡 Dev: Ejecutar `npm run web-dev` para iniciar
-
----
-
-**Próximos pasos:**
-1. `npm run server-push` - Crear BD
-2. `npm run web-dev` - Iniciar servidor dev
-3. Abrir http://localhost:3000 en navegador
+- ✅ Múltiples billeteras con colores personalizados
+- ✅ Transacciones con categorías (Grupos)
+- ✅ Drag & Drop para reordenar (desktop + mobile touch)
+- ✅ Activar/Desactivar transacciones
+- ✅ Arqueo / Auditoría (saldos manuales vs calculados)
+- ✅ Bloqueo/Finalización de cuentas con fecha de cierre
+- ✅ Exportación Excel premium (resumen + detalle por categoría)
+- ✅ Notas/Apuntes con colores
+- ✅ Modo incógnito
+- ✅ Paleta de colores guardable
+- ✅ KPIs globales con filtro de cuentas
+- ✅ Despliegue Docker + Traefik (HTTPS)

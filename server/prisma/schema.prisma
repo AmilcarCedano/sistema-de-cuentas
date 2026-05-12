@@ -14,12 +14,14 @@ model Cuenta {
   orden           Int     @default(0)
   estado          String  @default("activa")
   incluirEnKpis   Boolean @default(true)
+  fechaCierre     DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
   transacciones   Transaccion[]
   grupos          Grupo[]
   saldosManuales  SaldoManual[]
+  pagosMensuales  PagoMensual[]
 
   @@index([createdAt])
 }
@@ -67,6 +69,25 @@ model Transaccion {
   @@index([cuentaId])
   @@index([grupoId])
   @@index([fecha])
+}
+
+model PagoMensual {
+  id          Int       @id @default(autoincrement())
+  nombre      String
+  monto       Float
+  diaPago     Int       // Día del mes (1-31)
+  activo      Boolean   @default(true)
+  ultimoPago  DateTime?
+  mesPagado   String?   // Formato "2026-05" - mes que se pagó
+  comentario  String?   @db.Text
+  cuentaId    Int
+  cuenta      Cuenta    @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  grupoId     Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([cuentaId])
+  @@index([diaPago])
 }
 
 model Nota {

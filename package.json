@@ -27,6 +27,7 @@
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "node-ssh": "^13.2.1",
     "prisma": "^5.22.0"
   }
 }
