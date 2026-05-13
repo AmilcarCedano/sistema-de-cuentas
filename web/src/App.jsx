@@ -9,8 +9,8 @@ import {
   Lock, Unlock, Bell, Repeat
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
-// API URL: uses env variable in production, falls back to localhost in dev
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// API URL: uses proxy in dev and env in prod
+const API = import.meta.env.VITE_API_URL || '/api';
 const CURRENCY = 'S/' 
 const CATEGORY_COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#84cc16','#64748b']
 
@@ -45,13 +45,16 @@ const Amount = ({ val, incognito, className }) => (
 
 const Accordion = ({ title, icon: Icon, open, onToggle, children, actions }) => (
   <div className="bg-[#141824] rounded-[30px] border border-white/5 overflow-hidden transition-all duration-300">
-    <div className="p-5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={onToggle}>
-      <h3 className="text-[11px] font-black uppercase tracking-widest text-[#aab3cc] flex items-center gap-3">
-        {Icon && <Icon size={18} className="text-accent" />} {title}
-      </h3>
-      <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+    <div className="p-4 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between cursor-pointer hover:bg-white/5 transition-colors gap-3" onClick={onToggle}>
+      <div className="flex items-center justify-between w-full xl:w-auto">
+        <h3 className="text-[11px] font-black uppercase tracking-widest text-[#aab3cc] flex items-center gap-3 truncate pr-2">
+          {Icon && <Icon size={18} className="text-accent flex-shrink-0" />} <span className="truncate">{title}</span>
+        </h3>
+        <ChevronDown size={20} className={`xl:hidden text-text-muted transition-transform duration-300 ${open ? 'rotate-180 text-accent' : ''}`} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end" onClick={e => e.stopPropagation()}>
         {actions}
-        <ChevronDown size={20} className={`text-text-muted transition-transform duration-300 ${open ? 'rotate-180 text-accent' : ''}`} />
+        <ChevronDown size={20} className={`hidden xl:block text-text-muted transition-transform duration-300 ${open ? 'rotate-180 text-accent' : ''}`} />
       </div>
     </div>
     <div className={`transition-all duration-300 ease-in-out ${open ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
@@ -112,12 +115,14 @@ const UnifiedColorPalette = ({ selectedColor, onSelect, savedColors, onAddColor,
 }
 
 // --- DRAGGABLE ROW COMPONENT (desktop drag + mobile touch handle) ---
-const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatDate, onDragStart, onDragOver, onDrop, onMoveUp, onMoveDown, isDragging, isFirst, isLast, onViewNote }) => {
+const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatDate, onDragStart, onDragOver, onDrop, onMoveUp, onMoveDown, isDragging, isFirst, isLast, onViewNote, lockOrder, isCerrada }) => {
     const f = formatDate(tx.fecha)
     const catColor = tx.grupo?.color
     const isActivo = tx.activo !== false
+    const canMove = isActivo && !lockOrder
     const touchY = useRef(null)
     const [isSwiping, setIsSwiping] = useState(false)
+    const [dragEnabled, setDragEnabled] = useState(false)
 
     // Mobile: touch on grip handle to move up/down
     const handleGripTouch = (e) => {
@@ -127,7 +132,6 @@ const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatD
     }
     const handleGripMove = (e) => {
         if (!isSwiping || touchY.current === null) return
-        e.preventDefault()
         const dy = e.touches[0].clientY - touchY.current
         if (Math.abs(dy) > 40) {
             if (dy < 0 && !isFirst) onMoveUp?.(tx.id)
@@ -139,12 +143,12 @@ const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatD
     
     return (
         <div 
-            draggable={isActivo}
+            draggable={canMove && dragEnabled}
             data-txid={tx.id}
             onDragStart={(e) => onDragStart(e, tx.id)}
             onDragOver={onDragOver}
             onDrop={(e) => onDrop(e, tx.id)}
-            className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all gap-3 ${isActivo ? 'sm:cursor-grab sm:active:cursor-grabbing hover:border-white/10' : 'cursor-not-allowed opacity-50'} ${isDragging || isSwiping ? 'opacity-60 scale-[0.98] ring-2 ring-accent/50' : ''}`}
+            className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all gap-3 ${(canMove && dragEnabled) ? 'sm:cursor-grab sm:active:cursor-grabbing hover:border-white/10' : (isActivo ? 'hover:border-white/10' : 'cursor-not-allowed opacity-50')} ${isDragging || isSwiping ? 'opacity-60 scale-[0.98] ring-2 ring-accent/50' : ''}`}
             style={{ 
                 backgroundColor: isActivo ? (catColor ? `${catColor}12` : 'rgba(255,255,255,0.03)') : 'rgba(0,0,0,0.3)',
                 borderColor: isActivo ? (catColor ? `${catColor}25` : 'transparent') : 'rgba(255,255,255,0.1)',
@@ -153,13 +157,15 @@ const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatD
             }}
         >
             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                {isActivo && (
+                {isActivo && !lockOrder && (
                     <div 
-                        className="flex-shrink-0 p-1.5 rounded-xl bg-white/5 active:bg-accent/20 transition-all cursor-grab active:cursor-grabbing select-none"
-                        style={{ touchAction: 'none' }}
-                        onTouchStart={handleGripTouch}
-                        onTouchMove={handleGripMove}
-                        onTouchEnd={handleGripEnd}
+                        className={`flex-shrink-0 p-1.5 rounded-xl transition-all select-none ${canMove ? 'bg-white/5 active:bg-accent/20 cursor-grab active:cursor-grabbing' : 'opacity-20 cursor-default'}`}
+                        style={{ touchAction: canMove ? 'none' : 'auto' }}
+                        onMouseEnter={() => setDragEnabled(true)}
+                        onMouseLeave={() => setDragEnabled(false)}
+                        onTouchStart={canMove ? handleGripTouch : undefined}
+                        onTouchMove={canMove ? handleGripMove : undefined}
+                        onTouchEnd={canMove ? handleGripEnd : undefined}
                     >
                         <GripVertical size={16} className={`${isSwiping ? 'text-accent' : 'text-white/25'}`} />
                     </div>
@@ -186,18 +192,22 @@ const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatD
                         <StickyNote size={14} />
                     </button>
                 )}
-                <button 
-                    onClick={() => onToggleActivo(tx.id, !isActivo)} 
-                    className={`p-1.5 sm:p-2 rounded-xl transition-all ${isActivo ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-white/10 text-white/30 hover:bg-white/20'}`}
-                    title={isActivo ? 'Desactivar' : 'Activar'}
-                >
-                    {isActivo ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-                </button>
+                {!isCerrada && (
+                    <button 
+                        onClick={() => onToggleActivo(tx.id, !isActivo)} 
+                        className={`p-1.5 sm:p-2 rounded-xl transition-all ${isActivo ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-white/10 text-white/30 hover:bg-white/20'}`}
+                        title={isActivo ? 'Desactivar' : 'Activar'}
+                    >
+                        {isActivo ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                    </button>
+                )}
                 <Amount val={tx.monto} incognito={incognito} className={`text-base sm:text-lg font-black ${isActivo ? (tx.tipo === 'ingreso' ? 'text-[#10b981]' : 'text-[#ef4444]') : 'text-white/30'}`} />
-                <div className="flex gap-1">
-                    <button onClick={()=>onEdit(tx)} className="p-1.5 sm:p-2 bg-white/5 text-white/40 hover:text-white rounded-xl transition-all"><Edit3 size={14} /></button>
-                    <button onClick={()=>onDelete(tx.id)} className="p-1.5 sm:p-2 bg-white/5 text-white/40 hover:text-[#ef4444] rounded-xl transition-all"><Trash2 size={14} /></button>
-                </div>
+                {!isCerrada && (
+                    <div className="flex gap-1">
+                        <button onClick={()=>onEdit(tx)} className="p-1.5 sm:p-2 bg-white/5 text-white/40 hover:text-white rounded-xl transition-all"><Edit3 size={14} /></button>
+                        <button onClick={()=>onDelete(tx.id)} className="p-1.5 sm:p-2 bg-white/5 text-white/40 hover:text-[#ef4444] rounded-xl transition-all"><Trash2 size={14} /></button>
+                    </div>
+                )}
             </div>
         </div>
     )
@@ -219,6 +229,9 @@ const App = () => {
   const [historialMode, setHistorialMode] = useState('list') // 'list' | 'split'
   const [sortMode, setSortMode] = useState('custom') // 'custom' | 'date' | 'category'
   const [draggedId, setDraggedId] = useState(null)
+  const [lockOrder, setLockOrder] = useState(true)
+  const [filterCategory, setFilterCategory] = useState('')
+  const [importAccountOpen, setImportAccountOpen] = useState(null)
 
   const [uiState, setUiState] = useState({ homeStats: true, homeNotes: true, homePagos: true, accStats: true, accAudit: true, accHistory: true, accCategories: false, accPagos: false })
 
@@ -568,6 +581,23 @@ const App = () => {
       await fetch(`${API}/grupos/${grupoId}`, { method: 'DELETE' })
       await cargarCuentas()
     }
+  }
+
+  const handleImportGroups = async (targetId, sourceId) => {
+    if (!sourceId) return;
+    const sourceAccount = cuentas.find(c => String(c.id) === String(sourceId));
+    if (!sourceAccount || !sourceAccount.grupos || sourceAccount.grupos.length === 0) return alert('La cuenta no tiene categorías para importar.');
+    
+    const targetAccount = cuentas.find(c => String(c.id) === String(targetId));
+    const targetNames = new Set((targetAccount.grupos || []).map(g => g.nombre.toLowerCase()));
+    
+    for (const g of sourceAccount.grupos) {
+      if (!targetNames.has(g.nombre.toLowerCase())) {
+         await fetch(`${API}/cuentas/${targetId}/grupos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: g.nombre, color: g.color }) });
+      }
+    }
+    setImportAccountOpen(null);
+    await cargarCuentas();
   }
 
   // --- PAGOS MENSUALES ---
@@ -974,7 +1004,7 @@ const App = () => {
                           <div key={g.id} className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all hover:scale-105" style={{ backgroundColor: `${g.color}18`, border: `1px solid ${g.color}35` }}>
                             <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: g.color }}></div>
                             <span style={{ color: g.color }}>{g.nombre}</span>
-                            <button onClick={() => handleDeleteCategory(g.id)} className="ml-1 opacity-30 hover:opacity-100 transition-opacity"><X size={12} style={{ color: g.color }}/></button>
+                            {!isCerrada && <button onClick={() => handleDeleteCategory(g.id)} className="ml-1 opacity-30 hover:opacity-100 transition-opacity"><X size={12} style={{ color: g.color }}/></button>}
                           </div>
                         ))}
                       </div>
@@ -995,10 +1025,32 @@ const App = () => {
                             <button onClick={() => handleSaveCategory(c.id)} className="flex-1 py-3.5 bg-accent rounded-2xl text-[10px] font-black text-white shadow-lg hover:brightness-110 active:scale-95 transition-all">Guardar</button>
                           </div>
                         </div>
+                      ) : importAccountOpen === c.id ? (
+                        <div className="bg-white/5 p-5 rounded-2xl space-y-4 animate-slide-down border border-white/5">
+                           <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">Selecciona la cuenta de origen</p>
+                           <select 
+                               className="w-full bg-[#141824] border border-white/10 py-3.5 px-5 rounded-2xl text-white font-bold text-sm outline-none transition-all"
+                               onChange={(e) => handleImportGroups(c.id, e.target.value)}
+                               defaultValue=""
+                           >
+                               <option value="" disabled>-- Seleccionar Cuenta --</option>
+                               {cuentas.filter(other => other.id !== c.id).map(other => (
+                                   <option key={other.id} value={other.id}>{other.nombre}</option>
+                               ))}
+                           </select>
+                           <button onClick={() => setImportAccountOpen(null)} className="w-full py-3.5 bg-white/5 rounded-2xl text-[10px] font-black text-white/40 hover:text-white/60 transition-all mt-2">Cancelar</button>
+                        </div>
                       ) : (
-                        <button onClick={() => { setCatFormOpen(c.id); setCatForm({ nombre: '', color: '#3b82f6' }) }} className="w-full py-3.5 bg-white/5 border border-dashed border-white/10 rounded-2xl text-[10px] font-black uppercase text-white/30 hover:text-white/60 hover:border-white/20 transition-all flex items-center justify-center gap-2">
-                          <PlusCircle size={14}/> Agregar Categoría
-                        </button>
+                        <div className="flex gap-3">
+                          <button onClick={() => { setCatFormOpen(c.id); setCatForm({ nombre: '', color: '#3b82f6' }) }} className="flex-1 py-3.5 bg-white/5 border border-dashed border-white/10 rounded-2xl text-[10px] font-black uppercase text-white/30 hover:text-white/60 hover:border-white/20 transition-all flex items-center justify-center gap-2">
+                            <PlusCircle size={14}/> Agregar
+                          </button>
+                          {cuentas.length > 1 && (
+                              <button onClick={() => setImportAccountOpen(c.id)} className="flex-1 py-3.5 bg-accent/10 border border-dashed border-accent/20 rounded-2xl text-[10px] font-black uppercase text-accent/60 hover:text-accent hover:border-accent/40 transition-all flex items-center justify-center gap-2">
+                                <ArrowDownCircle size={14}/> Importar
+                              </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </Accordion>
@@ -1096,7 +1148,24 @@ const App = () => {
                     open={uiState.accHistory} 
                     onToggle={() => setUiState(s => ({...s, accHistory: !s.accHistory}))}
                     actions={
-                      <div className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-center justify-end gap-1.5 w-full">
+                        <select 
+                          className="bg-[#141824] border border-white/10 text-white/90 text-[9px] font-black uppercase rounded-lg px-2 py-1.5 outline-none cursor-pointer shadow-sm hover:bg-white/5 transition-all max-w-[120px] sm:max-w-none"
+                          value={filterCategory}
+                          onChange={(e) => setFilterCategory(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <option value="" className="bg-[#141824] text-white">TODAS</option>
+                          {(c.grupos || []).map(g => <option key={g.id} value={g.nombre} className="bg-[#141824] text-white">{g.nombre}</option>)}
+                        </select>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setLockOrder(!lockOrder); }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-[9px] font-black uppercase ${!lockOrder ? 'bg-accent text-white shadow-lg' : 'bg-white/5 text-white/40 hover:text-white hover:bg-white/10'}`}
+                          title={lockOrder ? 'Desbloquear Orden (Mover libremente)' : 'Bloquear Orden (Fijar elementos)'}
+                        >
+                          {!lockOrder ? <Unlock size={12} /> : <Lock size={12} />}
+                          <span className="hidden sm:inline">{!lockOrder ? 'Mover Libre' : 'Bloqueado'}</span>
+                        </button>
                         <button 
                           onClick={() => setSortMode(m => m === 'date' ? 'custom' : 'date')}
                           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all text-[9px] font-black uppercase ${sortMode === 'date' ? 'bg-accent text-white' : 'bg-white/5 text-white/40 hover:text-white hover:bg-white/10'}`}
@@ -1126,7 +1195,7 @@ const App = () => {
                   >
                     {historialMode === 'list' ? (
                       <div className="space-y-3 mt-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                        {getSortedTransactions(c.transacciones || [], sortMode).map((tx, idx, arr) => (
+                        {getSortedTransactions(c.transacciones || [], sortMode).filter(tx => filterCategory ? tx.grupo?.nombre === filterCategory : true).map((tx, idx, arr) => (
                           <DraggableRow 
                             key={tx.id} 
                             tx={tx} 
@@ -1144,6 +1213,8 @@ const App = () => {
                             isLast={idx === arr.length - 1}
                             isDragging={draggedId === tx.id}
                             onViewNote={handleViewNote}
+                            lockOrder={lockOrder || sortMode !== 'custom'}
+                            isCerrada={isCerrada}
                           />
                         ))}
                         {(c.transacciones || []).length === 0 && <p className="text-[10px] text-white/20 italic text-center py-4">No hay movimientos registrados.</p>}

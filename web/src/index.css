@@ -23,6 +23,7 @@ body {
   color: var(--text);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
+  color-scheme: dark;
 }
 
 .glass {

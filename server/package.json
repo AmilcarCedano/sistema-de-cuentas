@@ -5,7 +5,8 @@
   "description": "Backend + Prisma - Sistema de Cuentas",
   "main": "index.js",
   "scripts": {
-    "dev": "npx prisma generate && npx prisma db push && tsx watch src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "db:sync": "npx prisma generate && npx prisma db push",
     "build": "tsc",
     "start": "node dist/server.js",
     "prisma:studio": "prisma studio",
