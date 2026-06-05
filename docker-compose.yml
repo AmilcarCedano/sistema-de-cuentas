@@ -40,6 +40,13 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
+      # HTTP → redirige a HTTPS
+      - "traefik.http.routers.siscuentas-web-http.rule=Host(`sistema-anderson.duckdns.org`)"
+      - "traefik.http.routers.siscuentas-web-http.entrypoints=web"
+      - "traefik.http.routers.siscuentas-web-http.middlewares=https-redirect"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
+      # HTTPS
       - "traefik.http.routers.siscuentas-web.rule=Host(`sistema-anderson.duckdns.org`)"
       - "traefik.http.routers.siscuentas-web.entrypoints=websecure"
       - "traefik.http.routers.siscuentas-web.tls.certresolver=letsencrypt"
