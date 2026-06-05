@@ -1,7 +1,7 @@
 # API REST — Sistema de Cuentas
 
 **Base URL local:** `http://localhost:3001/api`  
-**Base URL producción:** `https://api-sistema-anderson.213.199.58.162.sslip.io/api`
+**Base URL producción:** `https://sistema-anderson.duckdns.org/api`
 
 ---
 

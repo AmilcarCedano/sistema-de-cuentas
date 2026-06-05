@@ -133,8 +133,8 @@ npx prisma migrate dev    # Con historial de migración
 
 Ver `DOKPLOY_GUIDE.md` para la infraestructura en Contabo.
 
-El deploy usa Docker Compose + Traefik (HTTPS automático vía sslip.io):
-- Frontend: https://sistema-anderson.213.199.58.162.sslip.io
-- API: https://api-sistema-anderson.213.199.58.162.sslip.io
+El deploy usa Docker Compose + Traefik (HTTPS automático vía DuckDNS + Let's Encrypt):
+- Frontend: https://sistema-anderson.duckdns.org
+- API: https://sistema-anderson.duckdns.org/api
 
 Script de deploy: `scripts/deploy_vps.py`
