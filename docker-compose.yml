@@ -14,7 +14,7 @@ services:
       - sistemacuentas_net
 
   sistemacuentas-backend:
-    build: 
+    build:
       context: ./server
     container_name: sistemacuentas-backend
     restart: always
@@ -26,20 +26,10 @@ services:
       - sistemacuentas-mysql
     networks:
       - sistemacuentas_net
-      - dokploy-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.siscuentas-api.rule=Host(`api-sistema-anderson.213.199.58.162.sslip.io`)"
-      - "traefik.http.routers.siscuentas-api.entrypoints=websecure"
-      - "traefik.http.routers.siscuentas-api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.siscuentas-api.loadbalancer.server.port=3001"
 
   sistemacuentas-frontend:
-    build: 
+    build:
       context: ./web
-      args:
-        - VITE_API_URL=https://api-sistema-anderson.213.199.58.162.sslip.io/api
     container_name: sistemacuentas-frontend
     restart: always
     depends_on:
@@ -50,7 +40,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.siscuentas-web.rule=Host(`sistema-anderson.213.199.58.162.sslip.io`)"
+      - "traefik.http.routers.siscuentas-web.rule=Host(`sistema-anderson.duckdns.org`)"
       - "traefik.http.routers.siscuentas-web.entrypoints=websecure"
       - "traefik.http.routers.siscuentas-web.tls.certresolver=letsencrypt"
       - "traefik.http.services.siscuentas-web.loadbalancer.server.port=80"
