@@ -126,7 +126,7 @@ app.put('/api/transacciones/:id', async (req, res) => {
       where: { id: parseInt(req.params.id) },
       data: {
         titulo,
-        monto: monto ? parseFloat(monto) : undefined,
+        monto: monto !== undefined && monto !== null ? parseFloat(monto) : undefined,
         tipo,
         comentario,
         grupoId: grupoId !== undefined ? (grupoId ? parseInt(grupoId) : null) : undefined,
@@ -255,24 +255,24 @@ app.post('/api/pagos-mensuales/:id/pagar', async (req, res) => {
     const [anio, mes] = mesObjetivo.split('-');
     const mesNombre = meses[parseInt(mes) - 1];
     
-    // Create the transaction
-    await prisma.transaccion.create({
-      data: {
-        titulo: `[Pago Mensual] ${pago.nombre} - ${mesNombre} ${anio}`,
-        monto: pago.monto,
-        tipo: 'egreso',
-        comentario: pago.comentario || `Pago mensual - ${mesNombre} ${anio} (día ${pago.diaPago})`,
-        cuentaId: cuentaId,
-        grupoId: pago.grupoId,
-        fecha: new Date()
-      }
-    });
-    
-    // Update last payment date and month
-    const updated = await prisma.pagoMensual.update({
-      where: { id: pago.id },
-      data: { ultimoPago: new Date(), mesPagado: mesObjetivo }
-    });
+    const ahora = new Date();
+    const [, updated] = await prisma.$transaction([
+      prisma.transaccion.create({
+        data: {
+          titulo: `[Pago Mensual] ${pago.nombre} - ${mesNombre} ${anio}`,
+          monto: pago.monto,
+          tipo: 'egreso',
+          comentario: pago.comentario || `Pago mensual - ${mesNombre} ${anio} (día ${pago.diaPago})`,
+          cuentaId: cuentaId,
+          grupoId: pago.grupoId,
+          fecha: ahora
+        }
+      }),
+      prisma.pagoMensual.update({
+        where: { id: pago.id },
+        data: { ultimoPago: ahora, mesPagado: mesObjetivo }
+      })
+    ]);
     
     res.json(updated);
   } catch (error) {

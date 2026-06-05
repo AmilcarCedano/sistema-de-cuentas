@@ -3,3 +3,11 @@ dist/
 .env
 .DS_Store
 *.log
+
+# Credenciales y guías con datos sensibles — NUNCA subir
+docs/DOKPLOY_GUIDE.md
+scripts/deploy_vps.py
+scripts/verificar_vps.py
+
+# Dumps de base de datos y reportes
+db/

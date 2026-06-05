@@ -242,6 +242,7 @@ const App = () => {
   const [isTxModal, setIsTxModal] = useState(false)
   const [txMode, setTxMode] = useState('create')
   const [txForm, setTxForm] = useState({ titulo: '', monto: '', tipo: 'ingreso', comentario: '', fecha: '', cuentaId: '', id: '', grupoId: '' })
+  const originalFechaRef = useRef('')
 
   const [isManualModal, setIsManualModal] = useState(false)
   const [manualForm, setManualForm] = useState({ nombre: '', monto: '' })
@@ -441,7 +442,7 @@ const App = () => {
   const handleSaveTx = async () => {
     const cid = txForm.cuentaId || selectedAccountId
     if (!cid) return alert('Selecciona una cuenta')
-    const finalData = { titulo: txForm.titulo, monto: parseFloat(txForm.monto), tipo: txForm.tipo, comentario: txForm.comentario || '', fecha: new Date().toISOString(), grupoId: txForm.grupoId || null }
+    const finalData = { titulo: txForm.titulo, monto: parseFloat(txForm.monto), tipo: txForm.tipo, comentario: txForm.comentario || '', fecha: txForm.fecha ? new Date(txForm.fecha).toISOString() : new Date().toISOString(), grupoId: txForm.grupoId || null }
     const url = txMode === 'create' ? `${API}/cuentas/${cid}/transacciones` : `${API}/transacciones/${txForm.id}`
     
     if (txMode === 'create') {
@@ -455,6 +456,7 @@ const App = () => {
     }
     
     setIsTxModal(false)
+    if (txMode === 'edit' && txForm.fecha && txForm.fecha !== originalFechaRef.current) setSortMode('date')
     await fetch(url, { method: txMode === 'create' ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(finalData) })
     await cargarCuentas()
   }
@@ -558,7 +560,9 @@ const App = () => {
 
   const handleEditTx = (tx) => {
     setTxMode('edit')
-    setTxForm({ titulo: tx.titulo, monto: tx.monto, tipo: tx.tipo, comentario: tx.comentario || '', fecha: new Date(tx.fecha).toISOString().slice(0, 16), cuentaId: tx.cuentaId, id: tx.id, grupoId: tx.grupoId || '' })
+    const fechaLocal = new Date(tx.fecha).toISOString().slice(0, 16)
+    originalFechaRef.current = fechaLocal
+    setTxForm({ titulo: tx.titulo, monto: tx.monto, tipo: tx.tipo, comentario: tx.comentario || '', fecha: fechaLocal, cuentaId: tx.cuentaId, id: tx.id, grupoId: tx.grupoId || '' })
     setIsTxModal(true)
   }
 
@@ -642,6 +646,21 @@ const App = () => {
     await fetch(`${API}/pagos-mensuales/${pago.id}/pagar`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cuentaId: targetCuentaId || pago.cuentaId, mesObjetivo })
+    })
+    await cargarCuentas()
+  }
+
+  const handlePayCurrentMonth = async (pago, targetCuentaId) => {
+    const mesActualKey = getMesKey(new Date())
+    const mesNombre = getMesNombre(mesActualKey)
+    const yaPagado = pago.mesPagado === mesActualKey
+    const msg = yaPagado
+      ? `⚠️ "${pago.nombre}" ya fue pagado en ${mesNombre}. ¿Registrar un pago adicional de ${CURRENCY}${pago.monto}?`
+      : `¿Registrar pago de ${CURRENCY}${pago.monto} por "${pago.nombre}" para ${mesNombre}?`
+    if (!confirm(msg)) return
+    await fetch(`${API}/pagos-mensuales/${pago.id}/pagar`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cuentaId: targetCuentaId || pago.cuentaId, mesObjetivo: mesActualKey })
     })
     await cargarCuentas()
   }
@@ -906,9 +925,14 @@ const App = () => {
                     <Amount val={p.monto} incognito={incognito} className="text-sm font-black text-[#ef4444]" />
                     <button onClick={() => handleEditPago(p)} className="p-1.5 bg-white/5 text-white/30 hover:text-white rounded-lg transition-all"><Edit3 size={12} /></button>
                     {p.activo && (
-                      <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[9px] font-black uppercase rounded-lg hover:bg-purple-500/30 transition-all">
-                        {yaPagado ? `Pagar ${getMesNombre(mesSigKey).split(' ')[0]}` : `Pagar ${getMesNombre(mesActualKey).split(' ')[0]}`}
-                      </button>
+                      <>
+                        <button onClick={() => handlePayCurrentMonth(p)} className="px-3 py-1.5 bg-green-500/20 text-green-400 text-[9px] font-black uppercase rounded-lg hover:bg-green-500/30 transition-all">
+                          Pagar este mes
+                        </button>
+                        <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[9px] font-black uppercase rounded-lg hover:bg-purple-500/30 transition-all">
+                          {yaPagado ? `Pagar ${getMesNombre(mesSigKey).split(' ')[0]}` : `Pagar ${getMesNombre(mesActualKey).split(' ')[0]}`}
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -1130,9 +1154,14 @@ const App = () => {
                               <button onClick={() => handleEditPago(p)} className="p-1.5 bg-white/5 text-white/30 hover:text-white rounded-lg transition-all"><Edit3 size={12} /></button>
                               <button onClick={() => handleDeletePago(p.id)} className="p-1.5 bg-white/5 text-white/30 hover:text-[#ef4444] rounded-lg transition-all"><Trash2 size={12} /></button>
                               {p.activo && !isCerrada && (
-                                <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[9px] font-black uppercase rounded-lg hover:bg-purple-500/30 transition-all">
-                                  {yaPagado ? `Pagar ${getMesNombre(mesSigKey).split(' ')[0]}` : `Pagar ${getMesNombre(mesActualKey).split(' ')[0]}`}
-                                </button>
+                                <>
+                                  <button onClick={() => handlePayCurrentMonth(p)} className="px-3 py-1.5 bg-green-500/20 text-green-400 text-[9px] font-black uppercase rounded-lg hover:bg-green-500/30 transition-all">
+                                    Pagar este mes
+                                  </button>
+                                  <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[9px] font-black uppercase rounded-lg hover:bg-purple-500/30 transition-all">
+                                    {yaPagado ? `Pagar ${getMesNombre(mesSigKey).split(' ')[0]}` : `Pagar ${getMesNombre(mesActualKey).split(' ')[0]}`}
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>

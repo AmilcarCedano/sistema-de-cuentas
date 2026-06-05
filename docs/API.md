@@ -1,302 +1,162 @@
-# 📡 Documentación de API
+# API REST — Sistema de Cuentas
 
-Todos los endpoints están en `/app/api/` y son accesibles cuando el servidor está corriendo.
-
-**URL Base:** `http://localhost:3000/api`
+**Base URL local:** `http://localhost:3001/api`  
+**Base URL producción:** `https://api-sistema-anderson.213.199.58.162.sslip.io/api`
 
 ---
 
-## 💰 Ingresos
+## Cuentas
 
-### GET /api/ingresos
-Obtiene todos los ingresos registrados.
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/cuentas` | Lista todas con transacciones, grupos, saldos y pagos |
+| `POST` | `/cuentas` | Crear nueva cuenta |
+| `PUT` | `/cuentas/:id` | Actualizar nombre, color, orden, incluirEnKpis |
+| `DELETE` | `/cuentas/:id` | Eliminar (cascade a transacciones, grupos, etc.) |
+| `PATCH` | `/cuentas/:id/lock` | Bloquear/desbloquear cuenta |
 
-**Método:** `GET`
-**URL:** `http://localhost:3000/api/ingresos`
-
-**Respuesta (200 OK):**
+**POST /cuentas — body:**
 ```json
-[
-  {
-    "id": 1,
-    "cantidad": 1000,
-    "descripcion": "Salario mensual",
-    "categoria": "Salario",
-    "fecha": "2026-04-15T10:30:00.000Z",
-    "notas": "Salario abril",
-    "createdAt": "2026-04-15T10:30:00.000Z",
-    "updatedAt": "2026-04-15T10:30:00.000Z"
-  },
-  {
-    "id": 2,
-    "cantidad": 500,
-    "descripcion": "Venta de artículos",
-    "categoria": "Venta",
-    "fecha": "2026-04-15T11:00:00.000Z",
-    "notas": null,
-    "createdAt": "2026-04-15T11:00:00.000Z",
-    "updatedAt": "2026-04-15T11:00:00.000Z"
-  }
-]
+{ "nombre": "Efectivo", "color": "#10b981" }
 ```
 
-**Nota:** Los ingresos se devuelven ordenados por fecha descendente (más recientes primero).
+**PATCH /cuentas/:id/lock — body:**
+```json
+{ "locked": true }
+```
 
 ---
 
-### POST /api/ingresos
-Crea un nuevo ingreso.
+## Transacciones
 
-**Método:** `POST`
-**URL:** `http://localhost:3000/api/ingresos`
-**Content-Type:** `application/json`
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/cuentas/:id/transacciones` | Crear transacción en una cuenta |
+| `PUT` | `/transacciones/:id` | Actualizar transacción |
+| `DELETE` | `/transacciones/:id` | Eliminar |
+| `PUT` | `/cuentas/:id/transacciones/reorder` | Reordenar batch (drag & drop) |
+| `PATCH` | `/transacciones/:id/activo` | Activar/desactivar |
 
-**Body (ejemplo):**
+**POST /cuentas/:id/transacciones — body:**
 ```json
 {
-  "cantidad": 1500,
-  "descripcion": "Freelance proyecto web",
-  "categoria": "Venta",
-  "notas": "Proyecto completado"
+  "titulo": "Salario",
+  "monto": 1500.00,
+  "tipo": "ingreso",
+  "comentario": "Mes de junio",
+  "fecha": "2026-06-05T10:00:00.000Z",
+  "grupoId": 3
 }
 ```
 
-**Campos requeridos:**
-| Campo | Tipo | Requerido | Notas |
-|-------|------|----------|-------|
-| cantidad | Float | ✅ | Monto del ingreso |
-| descripcion | String | ✅ | Máx 500 caracteres |
-| categoria | String | ❌ | Default: "General" |
-| notas | String | ❌ | Campo opcional |
-
-**Respuesta (201 Created):**
+**PUT /transacciones/:id — body (todos opcionales):**
 ```json
 {
-  "id": 3,
-  "cantidad": 1500,
-  "descripcion": "Freelance proyecto web",
-  "categoria": "Venta",
-  "fecha": "2026-04-15T12:00:00.000Z",
-  "notas": "Proyecto completado",
-  "createdAt": "2026-04-15T12:00:00.000Z",
-  "updatedAt": "2026-04-15T12:00:00.000Z"
+  "titulo": "Salario junio",
+  "monto": 1600.00,
+  "tipo": "ingreso",
+  "comentario": "",
+  "fecha": "2026-06-05T10:00:00.000Z",
+  "grupoId": null
 }
 ```
 
-**Errores:**
-- `400 Bad Request` - Campos faltantes o inválidos
-- `500 Internal Server Error` - Error en BD
+**PUT /cuentas/:id/transacciones/reorder — body:**
+```json
+{ "ordenes": [{ "id": 1, "orden": 0 }, { "id": 2, "orden": 1 }] }
+```
 
 ---
 
-### DELETE /api/ingresos/[id]
-Elimina un ingreso específico.
+## Grupos (Categorías)
 
-**Método:** `DELETE`
-**URL:** `http://localhost:3000/api/ingresos/1`
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/cuentas/:id/grupos` | Crear categoría en una cuenta |
+| `PUT` | `/grupos/:id` | Actualizar nombre/color |
+| `DELETE` | `/grupos/:id` | Eliminar (las transacciones quedan sin categoría) |
 
-**Parámetro:**
-- `id` (URL) - ID del ingreso a eliminar (entero)
+**POST /cuentas/:id/grupos — body:**
+```json
+{ "nombre": "Alimentación", "color": "#f59e0b" }
+```
 
-**Respuesta (200 OK):**
+---
+
+## Saldos Manuales (Arqueo)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/cuentas/:id/saldos` | Agregar saldo físico registrado |
+| `DELETE` | `/saldos/:id` | Eliminar saldo manual |
+
+**POST /cuentas/:id/saldos — body:**
+```json
+{ "nombre": "Conteo caja", "monto": 850.00 }
+```
+
+---
+
+## Pagos Mensuales
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/cuentas/:id/pagos-mensuales` | Crear pago recurrente |
+| `PUT` | `/pagos-mensuales/:id` | Actualizar |
+| `DELETE` | `/pagos-mensuales/:id` | Eliminar |
+| `POST` | `/pagos-mensuales/:id/pagar` | Registrar pago de un mes |
+
+**POST /cuentas/:id/pagos-mensuales — body:**
 ```json
 {
-  "id": 1,
-  "cantidad": 1000,
-  "descripcion": "Salario mensual",
-  "categoria": "Salario",
-  "fecha": "2026-04-15T10:30:00.000Z",
-  "notas": "Salario abril",
-  "createdAt": "2026-04-15T10:30:00.000Z",
-  "updatedAt": "2026-04-15T10:30:00.000Z"
+  "nombre": "Internet",
+  "monto": 89.90,
+  "diaPago": 15,
+  "comentario": "Claro Hogar",
+  "grupoId": 2
 }
 ```
 
-**Errores:**
-- `404 Not Found` - ID de ingreso no existe
-- `500 Internal Server Error` - Error en BD
-
----
-
-## 💳 Egresos
-
-### GET /api/egresos
-Obtiene todos los egresos registrados.
-
-**Método:** `GET`
-**URL:** `http://localhost:3000/api/egresos`
-
-**Respuesta (200 OK):**
+**POST /pagos-mensuales/:id/pagar — body:**
 ```json
-[
-  {
-    "id": 1,
-    "cantidad": 200,
-    "descripcion": "Comida semana",
-    "categoria": "Comida",
-    "fecha": "2026-04-15T08:00:00.000Z",
-    "notas": "",
-    "createdAt": "2026-04-15T08:00:00.000Z",
-    "updatedAt": "2026-04-15T08:00:00.000Z"
-  }
-]
+{ "cuentaId": 1, "mesObjetivo": "2026-06" }
 ```
 
-**Nota:** Los egresos se devuelven ordenados por fecha descendente.
+Crea una transacción de egreso y actualiza `mesPagado`. La operación es atómica (si falla una parte, se revierte todo).
 
 ---
 
-### POST /api/egresos
-Crea un nuevo egreso.
+## Notas
 
-**Método:** `POST`
-**URL:** `http://localhost:3000/api/egresos`
-**Content-Type:** `application/json`
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/notas` | Listar todas |
+| `POST` | `/notas` | Crear nota |
+| `PUT` | `/notas/:id` | Actualizar contenido/color |
+| `DELETE` | `/notas/:id` | Eliminar |
 
-**Body (ejemplo):**
+**POST /notas — body:**
 ```json
-{
-  "cantidad": 50,
-  "descripcion": "Gasolina carro",
-  "categoria": "Transporte",
-  "notas": "Carga completa"
-}
-```
-
-**Campos requeridos:**
-| Campo | Tipo | Requerido | Notas |
-|-------|------|----------|-------|
-| cantidad | Float | ✅ | Monto del egreso |
-| descripcion | String | ✅ | Máx 500 caracteres |
-| categoria | String | ❌ | Default: "General" |
-| notas | String | ❌ | Campo opcional |
-
-**Respuesta (201 Created):**
-```json
-{
-  "id": 2,
-  "cantidad": 50,
-  "descripcion": "Gasolina carro",
-  "categoria": "Transporte",
-  "fecha": "2026-04-15T12:30:00.000Z",
-  "notas": "Carga completa",
-  "createdAt": "2026-04-15T12:30:00.000Z",
-  "updatedAt": "2026-04-15T12:30:00.000Z"
-}
+{ "contenido": "Recordar pagar luz el 20", "color": "#fcd34d" }
 ```
 
 ---
 
-### DELETE /api/egresos/[id]
-Elimina un egreso específico.
+## Exportación
 
-**Método:** `DELETE`
-**URL:** `http://localhost:3000/api/egresos/1`
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/export/excel?accountId=:id` | Descarga reporte Excel premium |
 
-**Parámetro:**
-- `id` (URL) - ID del egreso a eliminar (entero)
-
-**Respuesta (200 OK):**
-```json
-{
-  "id": 1,
-  "cantidad": 200,
-  "descripcion": "Comida semana",
-  "categoria": "Comida",
-  "fecha": "2026-04-15T08:00:00.000Z",
-  "notas": "",
-  "createdAt": "2026-04-15T08:00:00.000Z",
-  "updatedAt": "2026-04-15T08:00:00.000Z"
-}
-```
+Genera un archivo `.xlsx` con resumen por categoría, historial completo y KPIs de la cuenta seleccionada.
 
 ---
 
-## 🧪 Ejemplos con curl
+## Respuestas de error
 
-### Crear un Ingreso
-```bash
-curl -X POST http://localhost:3000/api/ingresos \
-  -H "Content-Type: application/json" \
-  -d '{
-    "cantidad": 2000,
-    "descripcion": "Bonus laboral",
-    "categoria": "Salario"
-  }'
-```
+| Código | Situación |
+|---|---|
+| `404` | Recurso no encontrado |
+| `500` | Error interno del servidor |
 
-### Obtener todos los Ingresos
-```bash
-curl http://localhost:3000/api/ingresos
-```
-
-### Eliminar un Ingreso
-```bash
-curl -X DELETE http://localhost:3000/api/ingresos/1
-```
-
-### Crear un Egreso
-```bash
-curl -X POST http://localhost:3000/api/egresos \
-  -H "Content-Type: application/json" \
-  -d '{
-    "cantidad": 100,
-    "descripcion": "Utilidades",
-    "categoria": "Utilidades",
-    "notas": "Agua y luz"
-  }'
-```
-
----
-
-## 📊 Códigos de Estado HTTP
-
-| Código | Significado |
-|--------|-----------|
-| 200 | Éxito GET o DELETE |
-| 201 | Éxito POST (recurso creado) |
-| 400 | Bad Request - Datos inválidos |
-| 404 | Not Found - Recurso no existe |
-| 500 | Internal Server Error - Error del servidor |
-
----
-
-## ⏱️ Rendimiento
-
-**Índices Base de Datos:**
-- Ambas tablas tienen índice en campo `fecha` para búsquedas rápidas
-- Queries típicas: **< 50ms**
-
-**Límite de Registros:**
-- No hay límite por defecto (potencial de optimización futura)
-- Para aplicaciones con miles de registros, considerar paginación
-
----
-
-## 🔐 Seguridad (Consideraciones Futuras)
-
-Actualmente la API es **abierta sin autenticación**. Para producción:
-
-1. Agregar JWT authentication
-2. Validación más estricta de inputs
-3. Rate limiting
-4. HTTPS obligatorio
-5. CORS configurado
-
----
-
-## 🌐 Testing en Postman
-
-1. Descargar [Postman](https://www.postman.com/downloads/)
-2. Crear colección "Sistema Cuentas"
-3. Agregar requests:
-   - `GET /api/ingresos`
-   - `POST /api/ingresos`
-   - `DELETE /api/ingresos/:id`
-   - `GET /api/egresos`
-   - `POST /api/egresos`
-   - `DELETE /api/egresos/:id`
-
----
-
-**Última actualización:** 15 de abril de 2026
+Los endpoints no tienen autenticación (uso personal en red privada/VPS).
