@@ -79,146 +79,132 @@ class ScrapeRequest(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
 
+async def _nw(page, timeout=4000):
+    """Espera networkidle con timeout corto; ignora si no llega."""
+    try:
+        await page.wait_for_load_state("networkidle", timeout=timeout)
+    except Exception:
+        pass
+
+async def _open_courses_dropdown(page):
+    """Abre el dropdown de cursos via JavaScript (bypasea restricciones de visibilidad)."""
+    await page.evaluate("""
+        const btn = document.querySelector('#courses-select-button');
+        if (btn) { btn.click(); }
+        else {
+            const a = document.querySelector('#s2id_courses .select2-choice');
+            if (a) a.click();
+        }
+    """)
+
 async def scrape_grades(user: str = None, pwd: str = None):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=CHROMIUM_ARGS
-        )
+        browser = await p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
         context = await browser.new_context(ignore_https_errors=True)
         page = await context.new_page()
 
-        # 1. Iniciar SSO — Experience redirige via SAML a upaosso.upao.edu.pe
-        await page.goto(
-            "https://experience.elluciancloud.com/upao/",
-            wait_until="domcontentloaded", timeout=40000
-        )
-        # goto() ya sigue los redirects SAML; si no llegó, esperamos
+        # 1. SSO login via Experience → upaosso
+        await page.goto("https://experience.elluciancloud.com/upao/",
+                        wait_until="domcontentloaded", timeout=40000)
         if "upaosso.upao.edu.pe" not in page.url:
-            await page.wait_for_url("*upaosso.upao.edu.pe*", timeout=30000)
-        # 2. Esperar el form de login
-        await page.wait_for_selector("input[name='id_usuario']", timeout=15000)
+            await page.wait_for_url("*upaosso.upao.edu.pe*", timeout=20000)
+
+        await page.wait_for_selector("input[name='id_usuario']", timeout=10000)
         await page.fill("input[name='id_usuario']", user or USERNAME)
         await page.fill("input[name='nip']", pwd or PASSWORD)
         await page.click("input[name='btn_valida']")
 
-        # 3. SAML callback vuelve a Experience, no a SSB directamente
+        # SAML callback vuelve a Experience (timeout corto; si ya llegó, OK)
         try:
-            await page.wait_for_url("*experience.elluciancloud.com*", timeout=40000)
-        except Exception:
-            pass  # puede que ya esté en experience o en otra URL
-
-        # 4. Navegar directo a SSB — el cookie de sesión de upaosso permite CAS auto-login
-        active_page = page
-        await active_page.goto(
-            "https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades",
-            wait_until="domcontentloaded", timeout=50000
-        )
-        # Si CAS redirige de vuelta a upaosso para el ticket, esperar que vuelva a SSB
-        if "upaosso" in active_page.url:
-            await active_page.wait_for_url("*ssb.upao.edu.pe*", timeout=30000)
-        try:
-            await active_page.wait_for_load_state("networkidle", timeout=20000)
+            await page.wait_for_url("*experience.elluciancloud.com*", timeout=5000)
         except Exception:
             pass
 
-        await asyncio.sleep(5)
+        # 2. Navegar directo a SSB (CAS usa sesión activa de upaosso)
+        await page.goto("https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades",
+                        wait_until="domcontentloaded", timeout=50000)
+        if "upaosso" in page.url:
+            await page.wait_for_url("*ssb.upao.edu.pe*", timeout=20000)
+        await _nw(page, 5000)
 
-        # Seleccionar periodo más reciente (primer item que no sea "All Terms")
-        await active_page.click("#term-readonly")
-        await asyncio.sleep(2)
-        period_selected = False
-        for opt in await active_page.locator(".select2-results li").all():
+        # 3. Seleccionar periodo más reciente
+        await page.wait_for_selector("#term-readonly", timeout=10000)
+        await page.click("#term-readonly")
+        await asyncio.sleep(1)
+        for opt in await page.locator(".select2-results li").all():
             txt = await opt.inner_text()
             if "All Terms" not in txt and txt.strip():
                 await opt.click()
-                period_selected = True
                 break
-        if not period_selected:
+        else:
             raise Exception("No se encontró periodo disponible")
-        await asyncio.sleep(3)
+        await asyncio.sleep(1)
 
-        # Seleccionar nivel (primer item disponible, usualmente PREGRADO)
-        await active_page.click("#level-readonly")
-        await asyncio.sleep(2)
-        for opt in await active_page.locator(".select2-results li").all():
-            txt = await opt.inner_text()
-            if txt.strip():
+        # 4. Seleccionar nivel
+        await page.wait_for_selector("#level-readonly", timeout=5000)
+        await page.click("#level-readonly")
+        await asyncio.sleep(1)
+        for opt in await page.locator(".select2-results li").all():
+            if (await opt.inner_text()).strip():
                 await opt.click()
                 break
-        await asyncio.sleep(8)
-        await active_page.wait_for_selector("#courseWorkContainer", timeout=20000)
 
-        # Entrar a la vista de componentes (texto en inglés en SSB)
-        await active_page.locator(
-            "a:has-text('Components'), button:has-text('Components')"
-        ).first.click()
-        await asyncio.sleep(5)
-        await active_page.wait_for_load_state("networkidle", timeout=20000)
+        # 5. Esperar que aparezcan los cursos
+        await page.wait_for_selector("#courseWorkContainer", timeout=20000)
+        await _nw(page, 5000)
 
-        # Obtener lista de cursos del selector
-        await active_page.click("#courses-readonly")
-        await asyncio.sleep(2)
+        # 6. Entrar a la vista de componentes
+        await page.locator("a:has-text('Components'), button:has-text('Components')").first.click()
+        await _nw(page, 5000)
+
+        # 7. Obtener lista de cursos via JavaScript click (elemento oculto para Playwright)
+        await _open_courses_dropdown(page)
+        await asyncio.sleep(1.5)  # esperar que el courseList AJAX retorne
         course_options = []
-        for opt in await active_page.locator(".select2-results li").all():
+        for opt in await page.locator(".select2-results li").all():
             txt = (await opt.inner_text()).strip()
-            if txt and "seleccionar" not in txt.lower():
+            if txt and "seleccionar" not in txt.lower() and "searching" not in txt.lower():
                 course_options.append(txt)
-        await active_page.keyboard.press("Escape")
-        await asyncio.sleep(0.5)
+        await page.keyboard.press("Escape")
 
         all_courses = []
 
         for course_txt in course_options:
-            # Abrir selector y seleccionar curso
-            await active_page.click("#courses-readonly")
-            await asyncio.sleep(2)
-            for opt in await active_page.locator(".select2-results li").all():
-                opt_txt = (await opt.inner_text()).strip()
-                if opt_txt == course_txt:
-                    await opt.click()
-                    break
+            # Abrir dropdown y esperar 0.8s para que courseList AJAX empiece a cargar
+            await _open_courses_dropdown(page)
+            await asyncio.sleep(0.8)
+            # filter(has_text=) usa retry automático de Playwright → no hay referencia stale
+            await page.locator(".select2-results li").filter(has_text=course_txt).click(timeout=6000)
 
-            await asyncio.sleep(5)
-            await active_page.wait_for_load_state("networkidle", timeout=20000)
-
-            # Expandir subcomponentes cerrados
-            arrows = active_page.locator(".nested-arrow.nested-arrow-closed")
-            for i in range(await arrows.count()):
-                try:
-                    await arrows.nth(i).click()
-                    await asyncio.sleep(0.4)
-                except:
-                    pass
+            # Esperar que el grade-data AJAX dispare y complete
             await asyncio.sleep(1)
+            await _nw(page, 8000)
+            await asyncio.sleep(0.5)
 
-            # Extraer datos
-            data = await active_page.evaluate("""() => {
+            # Expandir subcomponentes cerrados via JS (evita timeout de Playwright)
+            await page.evaluate(
+                "document.querySelectorAll('.nested-arrow.nested-arrow-closed').forEach(a => a.click())"
+            )
+            await asyncio.sleep(0.5)
+
+            # Extraer datos de la tabla de componentes
+            data = await page.evaluate("""() => {
                 const clean = (txt) => txt.trim().replace(/\\s+/g,' ');
-                // Título del curso seleccionado (header de la sección de componentes)
-                const titleEl = document.querySelector('.grade-component-course-title, [xe-field="courseTitle"]');
-                const titulo = titleEl ? clean(titleEl.textContent).split('Press')[0] : '';
-                // Horas
                 const horasEl = document.querySelector('[xe-field="creditHours"]');
                 const horasRaw = horasEl ? clean(horasEl.textContent) : '';
                 const horasMatch = horasRaw.match(/([\\d.]+)/);
-                const horas = horasMatch ? horasMatch[1] : horasRaw;
                 const info = {
-                    titulo: titulo,
-                    horas: horas,
+                    horas: horasMatch ? horasMatch[1] : horasRaw,
                     cal_no_disponible: document.body.innerText.includes('no disponible'),
                     componentes: []
                 };
-                // Solo filas de componentes (tienen campo 'name'), no las de resumen del curso
                 document.querySelectorAll('table tbody tr').forEach(row => {
                     const cells = {};
                     row.querySelectorAll('[xe-field]').forEach(td => {
                         cells[td.getAttribute('xe-field')] = clean(td.textContent);
                     });
-                    // Solo incluir filas que tengan el campo 'name' (componentes de calificación)
                     if (cells.name) {
                         cells['nested'] = row.querySelector('.nested-arrow') !== null;
-                        // Normalizar mustPass a español para compatibilidad con el UI
                         if (cells.mustPass === 'Yes') cells.mustPass = 'Sí';
                         info.componentes.push(cells);
                     }
@@ -226,11 +212,10 @@ async def scrape_grades(user: str = None, pwd: str = None):
                 return info;
             }""")
 
-            # Parsear código del curso desde "ISIA 107 | 5592"
             parts = course_txt.split("|")
-            codigo = parts[0].strip()  # "ISIA 107"
+            codigo = parts[0].strip()
             nrc = parts[1].strip() if len(parts) > 1 else ""
-            nombre = CURSO_NOMBRES.get(codigo, data.get("titulo", codigo))
+            nombre = CURSO_NOMBRES.get(codigo, codigo)
 
             all_courses.append({
                 "nrc": course_txt,

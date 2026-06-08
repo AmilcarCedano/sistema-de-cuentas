@@ -281,8 +281,9 @@ const SCRAPE_STEPS = [
   { icon: '📊', label: 'Descargando calificaciones' },
   { icon: '💾', label: 'Guardando datos' },
 ]
-// ms desde el inicio en que cada paso se activa
-const SCRAPE_STEP_TIMES = [0, 5000, 30000, 80000, 160000, 270000]
+// ms desde el inicio en que cada paso se activa (~37s total real)
+const SCRAPE_STEP_TIMES = [0, 5000, 14000, 19000, 24000, 34000]
+const SCRAPE_EXPECTED_SECS = 40
 
 // --- MAIN APP ---
 
@@ -337,6 +338,8 @@ const App = () => {
   const [notasUpao, setNotasUpao] = useState({ cursos: MOCK_NOTAS, updatedAt: new Date().toISOString() })
   const [upaoLoading, setUpaoLoading] = useState(false)
   const [upaoStep, setUpaoStep] = useState(0)
+  const [upaoElapsed, setUpaoElapsed] = useState(0)
+  const upaoStartRef = useRef(null)
   const [upaoError, setUpaoError] = useState(null)
   const [expandedCourse, setExpandedCourse] = useState(null)
   const [simGrades, setSimGrades] = useState({})
@@ -489,12 +492,22 @@ const App = () => {
   }, [])
 
   useEffect(() => {
-    if (!upaoLoading) { setUpaoStep(0); return }
+    if (!upaoLoading) {
+      setUpaoStep(0)
+      setUpaoElapsed(0)
+      upaoStartRef.current = null
+      return
+    }
+    upaoStartRef.current = Date.now()
     setUpaoStep(0)
+    setUpaoElapsed(0)
     const timers = SCRAPE_STEP_TIMES.slice(1).map((t, i) =>
       setTimeout(() => setUpaoStep(i + 1), t)
     )
-    return () => timers.forEach(clearTimeout)
+    const ticker = setInterval(() => {
+      if (upaoStartRef.current) setUpaoElapsed(Math.floor((Date.now() - upaoStartRef.current) / 1000))
+    }, 200)
+    return () => { timers.forEach(clearTimeout); clearInterval(ticker) }
   }, [upaoLoading])
 
   // --- DRAG & DROP HANDLERS ---
@@ -1645,83 +1658,90 @@ const App = () => {
           </div>
         )}
 
-        {upaoLoading && (
-          <div className="relative overflow-hidden rounded-[30px] border border-accent/20 bg-gradient-to-b from-[#1a1f2e] to-[#0d1117] p-6">
+        {upaoLoading && (() => {
+          const pct = Math.min(
+            Math.max(
+              Math.round((upaoElapsed / SCRAPE_EXPECTED_SECS) * 100),
+              Math.round((upaoStep / (SCRAPE_STEPS.length - 1)) * 100)
+            ), 98
+          )
+          const mins = Math.floor(upaoElapsed / 60)
+          const secs = upaoElapsed % 60
+          const timeStr = mins > 0 ? `${mins}:${String(secs).padStart(2,'0')}` : `${secs}s`
+          return (
+          <div className="relative overflow-hidden rounded-[30px] border border-accent/20 bg-gradient-to-b from-[#1a1f2e] to-[#0d1117] p-5">
             {/* glow de fondo */}
-            <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-64 h-28 bg-accent/10 blur-3xl rounded-full" />
+            <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-32 bg-accent/8 blur-3xl rounded-full" />
 
             {/* cabecera */}
-            <div className="relative flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-2xl bg-accent/15 flex items-center justify-center flex-shrink-0">
-                <GraduationCap size={20} className="text-accent" />
+            <div className="relative flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-2xl bg-accent/15 flex items-center justify-center flex-shrink-0">
+                <GraduationCap size={18} className="text-accent" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-black text-white leading-tight">Cargando tus notas</p>
                 <p className="text-[10px] text-white/30 font-bold">UPAO · Campus Virtual</p>
               </div>
-              <div className="ml-auto w-5 h-5 border-2 border-accent/30 border-t-accent rounded-full animate-spin flex-shrink-0" />
+              {/* contador de tiempo */}
+              <div className="flex flex-col items-end flex-shrink-0">
+                <span className="text-[22px] font-black text-accent tabular-nums leading-none">{timeStr}</span>
+                <span className="text-[8px] text-white/20 font-black uppercase tracking-widest">transcurridos</span>
+              </div>
+            </div>
+
+            {/* barra de progreso principal */}
+            <div className="relative mb-4">
+              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500 ease-out"
+                  style={{
+                    width: `${pct}%`,
+                    background: 'linear-gradient(90deg, #6366f1, #3b82f6, #06b6d4)',
+                    boxShadow: '0 0 12px rgba(99,102,241,0.5)',
+                  }}
+                />
+              </div>
+              <div className="flex justify-between mt-1.5">
+                <span className="text-[9px] text-white/30 font-black">{pct}%</span>
+                <span className="text-[9px] text-white/20 font-bold">~{SCRAPE_EXPECTED_SECS}s total</span>
+              </div>
             </div>
 
             {/* pasos */}
-            <div className="relative space-y-1.5">
+            <div className="relative space-y-1">
               {SCRAPE_STEPS.map((step, i) => {
                 const done = i < upaoStep
                 const current = i === upaoStep
                 return (
-                  <div key={i} className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-700 ${
-                    current ? 'bg-accent/10 border border-accent/25 shadow-sm shadow-accent/10' :
+                  <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-500 ${
+                    current ? 'bg-accent/10 border border-accent/20' :
                     done    ? 'bg-emerald-500/5 border border-transparent' :
-                              'border border-transparent opacity-25'
+                              'border border-transparent opacity-20'
                   }`}>
-                    {/* indicador */}
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-500 text-[11px] font-black ${
-                      done    ? 'bg-emerald-500/20 text-emerald-400' :
-                      current ? 'bg-accent/20' : 'bg-white/5'
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-500 text-[10px] font-black ${
+                      done    ? 'bg-emerald-500/25 text-emerald-400' :
+                      current ? 'bg-accent/25' : 'bg-white/5'
                     }`}>
                       {done ? '✓' : current ? (
-                        <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
                       ) : (
-                        <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                        <div className="w-1 h-1 rounded-full bg-white/20" />
                       )}
                     </div>
-                    {/* texto */}
-                    <span className={`text-[11px] font-bold transition-all duration-500 ${
-                      done    ? 'text-emerald-400' :
-                      current ? 'text-white' : 'text-white/30'
+                    <span className={`text-[10px] font-bold transition-all duration-500 ${
+                      done ? 'text-emerald-400' : current ? 'text-white' : 'text-white/25'
                     }`}>
                       {step.icon} {step.label}
                     </span>
-                    {current && (
-                      <span className="ml-auto text-[9px] text-accent/50 font-black tracking-widest animate-pulse">•••</span>
-                    )}
-                    {done && (
-                      <span className="ml-auto text-[9px] text-emerald-400/50 font-black">listo</span>
-                    )}
+                    {current && <span className="ml-auto text-[8px] text-accent/60 font-black animate-pulse">en curso</span>}
+                    {done && <span className="ml-auto text-[8px] text-emerald-400/50 font-black">✓</span>}
                   </div>
                 )
               })}
             </div>
-
-            {/* barra de progreso */}
-            <div className="mt-5">
-              <div className="h-[3px] bg-white/5 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-1000 ease-out"
-                  style={{
-                    width: `${Math.round((upaoStep / (SCRAPE_STEPS.length - 1)) * 100)}%`,
-                    background: 'linear-gradient(90deg, var(--accent, #3b82f6)80, var(--accent, #3b82f6))',
-                  }}
-                />
-              </div>
-              <div className="flex justify-between mt-2">
-                <p className="text-[9px] text-white/20 font-black">
-                  {Math.round((upaoStep / (SCRAPE_STEPS.length - 1)) * 100)}%
-                </p>
-                <p className="text-[9px] text-white/20 font-bold">~2 min</p>
-              </div>
-            </div>
           </div>
-        )}
+          )
+        })()}
 
         {!upaoLoading && notasUpao.cursos.length === 0 && (
           <div className="p-10 bg-[#1a1f2e] rounded-[30px] border border-white/5 text-center">
