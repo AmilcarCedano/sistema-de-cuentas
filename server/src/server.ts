@@ -2,9 +2,32 @@ import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
+import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const prisma = new PrismaClient();
+
+// ── Auto-inicio del scraper cuando SCRAPER_URL apunta a localhost ──
+const SCRAPER_URL_ENV = process.env.SCRAPER_URL || 'http://sistemacuentas-scraper:8000';
+if (SCRAPER_URL_ENV.includes('localhost') || SCRAPER_URL_ENV.includes('127.0.0.1')) {
+  const scraperDir = path.resolve(__dirname, '../../scraper');
+  const scraperProc = spawn('python', ['-m', 'uvicorn', 'app:app', '--port', '8000', '--log-level', 'warning'], {
+    cwd: scraperDir,
+    detached: false,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  scraperProc.stdout?.on('data', (d: Buffer) => process.stdout.write(`[scraper] ${d}`));
+  scraperProc.stderr?.on('data', (d: Buffer) => process.stderr.write(`[scraper] ${d}`));
+  scraperProc.on('error', (e) => console.error('[scraper] No se pudo iniciar:', e.message));
+  scraperProc.on('exit', (code) => code && console.warn(`[scraper] Proceso terminó (code ${code})`));
+  process.on('exit', () => scraperProc.kill());
+  console.log('✅ Scraper iniciado automáticamente en :8000');
+}
 
 app.use(cors());
 app.use(express.json());
