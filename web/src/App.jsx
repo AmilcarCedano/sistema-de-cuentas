@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { 
-  PlusCircle, Trash2, Edit3, ArrowUpCircle, ArrowDownCircle, 
-  X, Wallet, PieChart, Home, ChevronRight, 
+import {
+  PlusCircle, Trash2, Edit3, ArrowUpCircle, ArrowDownCircle,
+  X, Wallet, PieChart, Home, ChevronRight,
   Download, StickyNote, ChevronUp, ChevronDown,
   TrendingUp, TrendingDown, Layers, FolderPlus, Tag, Settings, Clock, Calendar,
   Eye, EyeOff, ShieldCheck, Target, BarChart3, Calculator, ArrowLeftRight, Filter, AlertCircle, CheckCircle,
   GripVertical, LayoutGrid, ArrowDownAZ, ArrowDown01, RefreshCw, Palette,
-  Lock, Unlock, Bell, Repeat
+  Lock, Unlock, Bell, Repeat, GraduationCap
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 // API URL: uses proxy in dev and env in prod
@@ -213,6 +213,77 @@ const DraggableRow = ({ tx, onEdit, onDelete, onToggleActivo, incognito, formatD
     )
 }
 
+// --- MOCK DATA (preview local — se reemplaza al presionar Actualizar) ---
+const MOCK_NOTAS = [
+  {
+    codigo: 'ISIA 107', nombre: 'Infraestructura como Código', horas: '3', cal_disponible: true,
+    componentes: [
+      { name: 'ATTRGRD-ASISTENCIA', weight: '', score: '0', mustPass: 'Sí', inclusionIndicator: 'Final', nested: false },
+      { name: '1_EP1-EVALUACION DE PROCESO 1', weight: '20', score: '15.5', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '1_SUB-SUBCOMPONENTE 1', weight: '30', score: '16', mustPass: 'No', inclusionIndicator: '', nested: true },
+      { name: '2_SUB-SUBCOMPONENTE 2', weight: '30', score: '15', mustPass: 'No', inclusionIndicator: '', nested: true },
+      { name: '3_SUB-SUBCOMPONENTE 3', weight: '40', score: '15.5', mustPass: 'No', inclusionIndicator: '', nested: true },
+      { name: '2_EVP-EVALUACION PARCIAL', weight: '30', score: '14', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '3_EP2-EVALUACION DE PROCESO 2', weight: '20', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '4_SUB-SUBCOMPONENTE 4', weight: '30', score: '', mustPass: 'No', inclusionIndicator: '', nested: true },
+      { name: '5_SUB-SUBCOMPONENTE 5', weight: '30', score: '', mustPass: 'No', inclusionIndicator: '', nested: true },
+      { name: '6_SUB-SUBCOMPONENTE 6', weight: '40', score: '', mustPass: 'No', inclusionIndicator: '', nested: true },
+      { name: '4_EVF-EVALUACION FINAL', weight: '30', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+    ]
+  },
+  {
+    codigo: 'ISIA 118', nombre: 'Gobierno de Datos', horas: '3', cal_disponible: true,
+    componentes: [
+      { name: '1_EP1-EVALUACION DE PROCESO 1', weight: '20', score: '13', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '2_EVP-EVALUACION PARCIAL', weight: '30', score: '12.5', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '3_EP2-EVALUACION DE PROCESO 2', weight: '20', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '4_EVF-EVALUACION FINAL', weight: '30', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+    ]
+  },
+  {
+    codigo: 'ISIA 127', nombre: 'Aplic. Móviles para Negocios', horas: '3', cal_disponible: true,
+    componentes: [
+      { name: '1_EP1-EVALUACION DE PROCESO 1', weight: '20', score: '16', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '2_EVP-EVALUACION PARCIAL', weight: '30', score: '17', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '3_EP2-EVALUACION DE PROCESO 2', weight: '20', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '4_EVF-EVALUACION FINAL', weight: '30', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+    ]
+  },
+  {
+    codigo: 'ISIA 104', nombre: 'Cómputo Distribuido y Paralelo', horas: '3', cal_disponible: true,
+    componentes: [
+      { name: '1_EP1-EVALUACION DE PROCESO 1', weight: '20', score: '11', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '2_EVP-EVALUACION PARCIAL', weight: '30', score: '10', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '3_EP2-EVALUACION DE PROCESO 2', weight: '20', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '4_EVF-EVALUACION FINAL', weight: '30', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+    ]
+  },
+  {
+    codigo: 'ICSI 676', nombre: 'Métodos Cuantitativos para Negocios', horas: '3', cal_disponible: true,
+    componentes: [
+      { name: '1_EP1-EVALUACION DE PROCESO 1', weight: '20', score: '14', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '2_EVP-EVALUACION PARCIAL', weight: '30', score: '13.5', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '3_EP2-EVALUACION DE PROCESO 2', weight: '20', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+      { name: '4_EVF-EVALUACION FINAL', weight: '30', score: '', mustPass: 'No', inclusionIndicator: 'Final', nested: false },
+    ]
+  },
+  {
+    codigo: 'ISIA 117', nombre: 'Proyecto de Investigación', horas: '3', cal_disponible: false,
+    componentes: []
+  },
+]
+
+const SCRAPE_STEPS = [
+  { icon: '🔌', label: 'Conectando al servidor' },
+  { icon: '🔑', label: 'Iniciando sesión en UPAO' },
+  { icon: '🏫', label: 'Accediendo al campus virtual' },
+  { icon: '📚', label: 'Buscando tus cursos' },
+  { icon: '📊', label: 'Descargando calificaciones' },
+  { icon: '💾', label: 'Guardando datos' },
+]
+// ms desde el inicio en que cada paso se activa
+const SCRAPE_STEP_TIMES = [0, 5000, 30000, 80000, 160000, 270000]
+
 // --- MAIN APP ---
 
 const App = () => {
@@ -261,6 +332,25 @@ const App = () => {
   const [isPagoModal, setIsPagoModal] = useState(false)
   const [pagoMode, setPagoMode] = useState('create')
   const [pagoForm, setPagoForm] = useState({ id: '', nombre: '', monto: '', diaPago: '', comentario: '', cuentaId: '', grupoId: '' })
+
+  // Notas UPAO
+  const [notasUpao, setNotasUpao] = useState({ cursos: MOCK_NOTAS, updatedAt: new Date().toISOString() })
+  const [upaoLoading, setUpaoLoading] = useState(false)
+  const [upaoStep, setUpaoStep] = useState(0)
+  const [upaoError, setUpaoError] = useState(null)
+  const [expandedCourse, setExpandedCourse] = useState(null)
+  const [simGrades, setSimGrades] = useState({})
+  const [upaoProfiles, setUpaoProfiles] = useState(() => {
+    try {
+      const s = localStorage.getItem('upao_profiles')
+      return s ? JSON.parse(s) : [{ id: '000280169', nombre: 'Yo', usuario: '000280169', password: '' }]
+    } catch { return [{ id: '000280169', nombre: 'Yo', usuario: '000280169', password: '' }] }
+  })
+  const [activeProfileId, setActiveProfileId] = useState(
+    () => localStorage.getItem('upao_active_profile') || '000280169'
+  )
+  const [showAddProfile, setShowAddProfile] = useState(false)
+  const [profileForm, setProfileForm] = useState({ nombre: '', usuario: '', password: '' })
 
   // Category inline form
   const [catFormOpen, setCatFormOpen] = useState(null)
@@ -312,17 +402,100 @@ const App = () => {
     try {
       const resp = await fetch(`${API}/notas`)
       if (resp.ok) setNotas(await resp.json())
-    } catch (e) { 
+    } catch (e) {
       console.error('Error cargando notas')
     }
   }, [])
 
-  useEffect(() => { 
+  const cargarNotasUpao = useCallback(async (profileId) => {
+    try {
+      const pid = profileId || activeProfileId
+      const profile = upaoProfiles.find(p => p.id === pid)
+      const user = profile?.usuario || pid
+      const resp = await fetch(`${API}/notas-upao?user=${encodeURIComponent(user)}`)
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data.cursos && data.cursos.length > 0) setNotasUpao(data)
+        else setNotasUpao({ cursos: [], updatedAt: null })
+      }
+    } catch (e) { console.error('Error cargando notas UPAO') }
+  }, [activeProfileId, upaoProfiles])
+
+  const handleRefreshNotas = async () => {
+    setUpaoLoading(true)
+    setUpaoError(null)
+    try {
+      const profile = upaoProfiles.find(p => p.id === activeProfileId)
+      const body = {}
+      if (profile?.usuario)  body.username = profile.usuario
+      if (profile?.password) body.password = profile.password
+      const resp = await fetch(`${API}/notas-upao/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        setNotasUpao({ cursos: data.cursos, updatedAt: data.updatedAt })
+      } else {
+        const err = await resp.json()
+        setUpaoError(err.error || 'Error al actualizar notas')
+      }
+    } catch (e) {
+      setUpaoError('No se pudo conectar al servidor')
+    } finally {
+      setSimGrades({})
+      setUpaoLoading(false)
+    }
+  }
+
+  const saveProfiles = (profiles) => {
+    setUpaoProfiles(profiles)
+    localStorage.setItem('upao_profiles', JSON.stringify(profiles))
+  }
+
+  const handleSwitchProfile = async (id) => {
+    setActiveProfileId(id)
+    localStorage.setItem('upao_active_profile', id)
+    setSimGrades({})
+    setNotasUpao({ cursos: [], updatedAt: null })
+    await cargarNotasUpao(id)
+  }
+
+  const handleAddProfile = async () => {
+    if (!profileForm.usuario.trim() || !profileForm.password.trim()) return
+    const nombre = profileForm.nombre.trim() || profileForm.usuario.trim()
+    const newP = { id: profileForm.usuario.trim(), nombre, usuario: profileForm.usuario.trim(), password: profileForm.password.trim() }
+    const updated = [...upaoProfiles.filter(p => p.id !== newP.id), newP]
+    saveProfiles(updated)
+    setProfileForm({ nombre: '', usuario: '', password: '' })
+    setShowAddProfile(false)
+    await handleSwitchProfile(newP.id)
+  }
+
+  const handleDeleteProfile = (id) => {
+    if (upaoProfiles.length <= 1) return
+    const updated = upaoProfiles.filter(p => p.id !== id)
+    saveProfiles(updated)
+    if (activeProfileId === id) handleSwitchProfile(updated[0].id)
+  }
+
+  useEffect(() => {
     cargarCuentas(false)
-    cargarNotas() 
+    cargarNotas()
+    cargarNotasUpao()
     const interval = setInterval(() => cargarCuentas(false), 5000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if (!upaoLoading) { setUpaoStep(0); return }
+    setUpaoStep(0)
+    const timers = SCRAPE_STEP_TIMES.slice(1).map((t, i) =>
+      setTimeout(() => setUpaoStep(i + 1), t)
+    )
+    return () => timers.forEach(clearTimeout)
+  }, [upaoLoading])
 
   // --- DRAG & DROP HANDLERS ---
   const handleDragStart = (e, txId) => {
@@ -1338,6 +1511,422 @@ const App = () => {
     </div>
   )
 
+  const NotasUpaoView = () => {
+    const PASS  = 10.5
+    const PARTS = [['EP1', 20], ['EVP', 30], ['EP2', 20], ['EVF', 30]]
+    const activeProfile = upaoProfiles.find(p => p.id === activeProfileId) || upaoProfiles[0]
+
+    const gradeColor = (val) => {
+      const n = parseFloat(val)
+      if (!val || isNaN(n)) return 'text-white/30'
+      if (n >= 14)   return 'text-[#10b981]'
+      if (n >= PASS) return 'text-yellow-400'
+      return 'text-[#ef4444]'
+    }
+
+    // Real score from scraper (null if missing)
+    // nested=true en datos reales significa "tiene botón expandir" (padre), no "es hijo"
+    // Usamos inclusionIndicator==='' para identificar filas hijo (subcomponentes)
+    const isSubComponent = (comp) => comp.inclusionIndicator === ''
+    const realScore = (comps, kw) => {
+      const c = (comps || []).find(c => c.name?.toUpperCase().includes(kw) && !isSubComponent(c))
+      return (c && c.score !== '') ? parseFloat(c.score) || null : null
+    }
+
+    // Effective score: real first, then simulation
+    const effScore = (comps, kw, cod) => {
+      const r = realScore(comps, kw)
+      if (r !== null) return { val: r, real: true }
+      const s = simGrades[`${cod}-${kw}`]
+      return { val: (s && s !== '') ? s : null, real: false }
+    }
+
+    // Projection + minimum needed
+    const calcInfo = (comps, cod) => {
+      let acum = 0, missingW = 0
+      const missing = []
+      for (const [kw, w] of PARTS) {
+        const { val } = effScore(comps, kw, cod)
+        if (val !== null) acum += parseFloat(val) * w / 100
+        else { missingW += w; missing.push(kw) }
+      }
+      const needed  = PASS - acum
+      const minEach = missingW > 0 ? needed / (missingW / 100) : null
+      const maxPoss = acum + 20 * (missingW / 100)
+      return { acum, missing, missingW, minEach, maxPoss,
+        passing:     acum >= PASS,
+        impossible:  missingW > 0 && maxPoss < PASS,
+        allGraded:   missingW === 0 }
+    }
+
+    return (
+      <div className="space-y-5 pb-40">
+
+        {/* ── Header ── */}
+        <div className="flex justify-between items-center px-2">
+          <div>
+            <h2 className="text-lg font-black text-white/90 uppercase tracking-widest flex items-center gap-2">
+              <GraduationCap size={20} className="text-accent" /> Notas UPAO
+            </h2>
+            {notasUpao.updatedAt && (
+              <p className="text-[9px] text-white/30 uppercase tracking-widest mt-1 pl-1">
+                Actualizado: {new Date(notasUpao.updatedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
+          <button onClick={handleRefreshNotas} disabled={upaoLoading}
+            className="flex items-center gap-2 px-5 py-3 bg-accent/10 border border-accent/30 rounded-2xl text-accent text-[10px] font-black uppercase tracking-widest hover:bg-accent/20 transition-all disabled:opacity-50 active:scale-95">
+            <RefreshCw size={16} className={upaoLoading ? 'animate-spin' : ''} />
+            {upaoLoading ? 'Cargando...' : 'Actualizar'}
+          </button>
+        </div>
+
+        {/* ── Selector de perfiles ── */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {upaoProfiles.map(p => (
+            <button key={p.id} onClick={() => handleSwitchProfile(p.id)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-[10px] font-black transition-all ${
+                p.id === activeProfileId
+                  ? 'bg-accent text-white shadow-lg shadow-accent/25'
+                  : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70'
+              }`}>
+              <span>{p.id === activeProfileId ? '😊' : '👤'}</span>
+              <span>{p.nombre}</span>
+              {upaoProfiles.length > 1 && p.id !== activeProfileId && (
+                <button onClick={e => { e.stopPropagation(); handleDeleteProfile(p.id) }}
+                  className="ml-1 opacity-40 hover:opacity-100 text-red-400 transition-opacity">
+                  <X size={10} />
+                </button>
+              )}
+            </button>
+          ))}
+          <button onClick={() => setShowAddProfile(v => !v)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-[10px] font-black transition-all ${
+              showAddProfile ? 'bg-white/10 text-white' : 'bg-white/5 text-white/30 hover:bg-white/8 hover:text-white/60'
+            }`}>
+            <PlusCircle size={13} /> Agregar
+          </button>
+        </div>
+
+        {/* ── Formulario agregar perfil ── */}
+        {showAddProfile && (
+          <div className="bg-[#1a1f2e] rounded-[24px] border border-white/10 p-5 space-y-3 animate-slide-down">
+            <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Nuevo perfil UPAO</p>
+            <input placeholder="Nombre (opcional)" value={profileForm.nombre}
+              onChange={e => setProfileForm(f => ({ ...f, nombre: e.target.value }))}
+              className="w-full bg-white/5 border border-white/10 py-3 px-4 rounded-2xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
+            <div className="grid grid-cols-2 gap-3">
+              <input placeholder="ID UPAO (ej: 000123456)" value={profileForm.usuario}
+                onChange={e => setProfileForm(f => ({ ...f, usuario: e.target.value }))}
+                className="bg-white/5 border border-white/10 py-3 px-4 rounded-2xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
+              <input type="password" placeholder="Contraseña (NIP)" value={profileForm.password}
+                onChange={e => setProfileForm(f => ({ ...f, password: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && handleAddProfile()}
+                className="bg-white/5 border border-white/10 py-3 px-4 rounded-2xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setShowAddProfile(false); setProfileForm({ nombre: '', usuario: '', password: '' }) }}
+                className="flex-1 py-3 bg-white/5 rounded-2xl text-[10px] font-black text-white/30 hover:text-white/60 transition-all">
+                Cancelar
+              </button>
+              <button onClick={handleAddProfile}
+                disabled={!profileForm.usuario.trim() || !profileForm.password.trim()}
+                className="flex-1 py-3 bg-accent rounded-2xl text-[10px] font-black text-white shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-40">
+                Guardar y cargar notas
+              </button>
+            </div>
+          </div>
+        )}
+
+        {upaoError && (
+          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-3">
+            <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+            <p className="text-[11px] text-red-400 font-bold">{upaoError}</p>
+          </div>
+        )}
+
+        {upaoLoading && (
+          <div className="relative overflow-hidden rounded-[30px] border border-accent/20 bg-gradient-to-b from-[#1a1f2e] to-[#0d1117] p-6">
+            {/* glow de fondo */}
+            <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-64 h-28 bg-accent/10 blur-3xl rounded-full" />
+
+            {/* cabecera */}
+            <div className="relative flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-2xl bg-accent/15 flex items-center justify-center flex-shrink-0">
+                <GraduationCap size={20} className="text-accent" />
+              </div>
+              <div>
+                <p className="text-[13px] font-black text-white leading-tight">Cargando tus notas</p>
+                <p className="text-[10px] text-white/30 font-bold">UPAO · Campus Virtual</p>
+              </div>
+              <div className="ml-auto w-5 h-5 border-2 border-accent/30 border-t-accent rounded-full animate-spin flex-shrink-0" />
+            </div>
+
+            {/* pasos */}
+            <div className="relative space-y-1.5">
+              {SCRAPE_STEPS.map((step, i) => {
+                const done = i < upaoStep
+                const current = i === upaoStep
+                return (
+                  <div key={i} className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-700 ${
+                    current ? 'bg-accent/10 border border-accent/25 shadow-sm shadow-accent/10' :
+                    done    ? 'bg-emerald-500/5 border border-transparent' :
+                              'border border-transparent opacity-25'
+                  }`}>
+                    {/* indicador */}
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-500 text-[11px] font-black ${
+                      done    ? 'bg-emerald-500/20 text-emerald-400' :
+                      current ? 'bg-accent/20' : 'bg-white/5'
+                    }`}>
+                      {done ? '✓' : current ? (
+                        <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                      ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                      )}
+                    </div>
+                    {/* texto */}
+                    <span className={`text-[11px] font-bold transition-all duration-500 ${
+                      done    ? 'text-emerald-400' :
+                      current ? 'text-white' : 'text-white/30'
+                    }`}>
+                      {step.icon} {step.label}
+                    </span>
+                    {current && (
+                      <span className="ml-auto text-[9px] text-accent/50 font-black tracking-widest animate-pulse">•••</span>
+                    )}
+                    {done && (
+                      <span className="ml-auto text-[9px] text-emerald-400/50 font-black">listo</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* barra de progreso */}
+            <div className="mt-5">
+              <div className="h-[3px] bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000 ease-out"
+                  style={{
+                    width: `${Math.round((upaoStep / (SCRAPE_STEPS.length - 1)) * 100)}%`,
+                    background: 'linear-gradient(90deg, var(--accent, #3b82f6)80, var(--accent, #3b82f6))',
+                  }}
+                />
+              </div>
+              <div className="flex justify-between mt-2">
+                <p className="text-[9px] text-white/20 font-black">
+                  {Math.round((upaoStep / (SCRAPE_STEPS.length - 1)) * 100)}%
+                </p>
+                <p className="text-[9px] text-white/20 font-bold">~2 min</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!upaoLoading && notasUpao.cursos.length === 0 && (
+          <div className="p-10 bg-[#1a1f2e] rounded-[30px] border border-white/5 text-center">
+            <GraduationCap size={44} className="mx-auto text-white/10 mb-4" />
+            <p className="text-[11px] text-white/40 font-bold uppercase tracking-widest">Sin datos aún</p>
+            <p className="text-[10px] text-white/20 mt-2">Presiona "Actualizar" para cargar tus notas</p>
+          </div>
+        )}
+
+        {/* ── Hint ── */}
+        {notasUpao.cursos.length > 0 && (
+          <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-accent/5 border border-dashed border-accent/20 rounded-2xl">
+            <div className="w-2 h-2 rounded-full bg-accent/50 flex-shrink-0" />
+            <p className="text-[9px] text-accent/60 font-bold leading-relaxed">
+              Las celdas punteadas azules son editables — escribe una nota para simular tu promedio
+            </p>
+          </div>
+        )}
+
+        {/* ── Cards ── */}
+        <div className="space-y-3">
+          {(notasUpao.cursos || []).map((curso) => {
+            const comps  = curso.componentes || []
+            const info   = calcInfo(comps, curso.codigo)
+            const isOpen = expandedCourse === curso.codigo
+
+            return (
+              <div key={curso.codigo} className="bg-[#141824] rounded-[28px] border border-white/5 overflow-hidden">
+
+                {/* ── Card top (clickable) ── */}
+                <div className="p-5 pb-4 cursor-pointer hover:bg-white/[0.02] transition-colors"
+                  onClick={() => setExpandedCourse(isOpen ? null : curso.codigo)}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-accent bg-accent/10 px-2.5 py-1 rounded-lg">
+                          {curso.codigo}
+                        </span>
+                        {!curso.cal_disponible && (
+                          <span className="text-[8px] font-black uppercase text-white/25 bg-white/5 px-2 py-1 rounded-lg">Sin notas</span>
+                        )}
+                        {info.allGraded && (
+                          <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${info.passing ? 'text-[#10b981] bg-[#10b981]/10' : 'text-[#ef4444] bg-[#ef4444]/10'}`}>
+                            {info.passing ? '😊 Aprobado' : '😔 Desaprobado'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-white/90 leading-snug">{curso.nombre}</p>
+                      <p className="text-[9px] text-white/25 mt-0.5">{curso.horas} créditos</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
+                      {info.acum > 0 && !info.allGraded && (
+                        <span className="text-base">{info.passing ? '😊' : info.impossible ? '😔' : ''}</span>
+                      )}
+                      <span className={`text-2xl font-black tabular-nums ${info.acum > 0 ? gradeColor(info.acum) : 'text-white/15'}`}>
+                        {info.acum > 0 ? info.acum.toFixed(2) : '—'}
+                      </span>
+                      <ChevronDown size={18} className={`text-white/25 transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Grade cells + sim inputs ── */}
+                {curso.cal_disponible && (
+                  <div className="px-5 pb-4" onClick={e => e.stopPropagation()}>
+                    <div className="flex gap-2">
+                      {PARTS.map(([kw, w]) => {
+                        const { val, real } = effScore(comps, kw, curso.codigo)
+                        const simKey = `${curso.codigo}-${kw}`
+                        const isEmpty = !real
+
+                        return (
+                          <div key={kw} className={`flex-1 rounded-xl p-2.5 text-center transition-all ${
+                            isEmpty
+                              ? 'border border-dashed border-accent/30 bg-accent/5'
+                              : 'bg-white/5'
+                          }`}>
+                            <p className="text-[7px] font-black uppercase tracking-widest text-white/30 mb-1.5">{kw}</p>
+                            {isEmpty ? (
+                              <input
+                                type="number" min="1" max="20" step="0.1"
+                                placeholder="—"
+                                value={simGrades[simKey] || ''}
+                                onChange={e => {
+                                  const raw = e.target.value
+                                  if (raw === '' || raw === '-') { setSimGrades(p => ({ ...p, [simKey]: raw })); return }
+                                  const n = parseFloat(raw)
+                                  if (!isNaN(n) && n > 20) { setSimGrades(p => ({ ...p, [simKey]: '20' })); return }
+                                  setSimGrades(p => ({ ...p, [simKey]: raw }))
+                                }}
+                                onBlur={e => {
+                                  const n = parseFloat(e.target.value)
+                                  if (isNaN(n) || e.target.value === '') { setSimGrades(p => ({ ...p, [simKey]: '' })); return }
+                                  const clamped = Math.min(20, Math.max(1, Math.round(n * 10) / 10))
+                                  setSimGrades(p => ({ ...p, [simKey]: String(clamped) }))
+                                }}
+                                className="w-full bg-transparent text-center text-[15px] font-black text-accent outline-none placeholder-white/20
+                                  [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                            ) : (
+                              <p className={`text-[15px] font-black leading-none ${gradeColor(val)}`}>{val}</p>
+                            )}
+                            <p className="text-[7px] text-white/20 mt-1.5">{w}%</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* ── Recommendation bar ── */}
+                    {info.missingW > 0 && (() => {
+                      const hasSim = info.missing.some(kw => simGrades[`${curso.codigo}-${kw}`])
+                      const projLabel = hasSim
+                        ? `Proyectado: ${info.acum.toFixed(2)}`
+                        : null
+
+                      return (
+                        <div className={`mt-2.5 rounded-xl px-4 py-3 flex items-center justify-between gap-3 ${
+                          info.impossible   ? 'bg-red-500/10 border border-red-500/20' :
+                          info.passing      ? 'bg-[#10b981]/8 border border-[#10b981]/20' :
+                                             'bg-white/[0.03] border border-white/5'
+                        }`}>
+                          <div className="flex-1 min-w-0">
+                            {info.impossible ? (
+                              <p className="text-[11px] font-black text-red-400">😔 Ya no es posible aprobar</p>
+                            ) : info.passing ? (
+                              <>
+                                <p className="text-[11px] font-black text-[#10b981]">😊 ¡Con lo que tienes ya apruebas!</p>
+                                {projLabel && <p className={`text-sm font-black mt-0.5 ${gradeColor(info.acum)}`}>{projLabel}</p>}
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-[8px] font-black uppercase text-white/25 mb-1">
+                                  Lo que necesitas en {info.missing.join(' y ')}:
+                                </p>
+                                <div className="flex items-baseline gap-2 flex-wrap">
+                                  <span className={`text-xl font-black tabular-nums ${
+                                    info.minEach > 18 ? 'text-[#ef4444]' :
+                                    info.minEach > 13 ? 'text-orange-400' :
+                                    info.minEach > 10 ? 'text-yellow-400' : 'text-[#10b981]'
+                                  }`}>
+                                    {info.minEach > 20 ? '—' : info.minEach.toFixed(2)}
+                                  </span>
+                                  {info.minEach >= 10.5 && info.minEach < 11.5 && (
+                                    <span className="text-[9px] font-black text-white/35 bg-white/5 px-2 py-0.5 rounded-lg">aprox. 11</span>
+                                  )}
+                                  {info.minEach > 20 && (
+                                    <span className="text-[10px] font-black text-red-400">😔 imposible</span>
+                                  )}
+                                  {projLabel && (
+                                    <span className={`text-[10px] font-black ml-2 ${gradeColor(info.acum)}`}>{projLabel}</span>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          <div className="text-right flex-shrink-0 pl-2 border-l border-white/5">
+                            <p className="text-[7px] font-black uppercase text-white/20">Acum.</p>
+                            <p className={`text-base font-black tabular-nums ${gradeColor(info.acum)}`}>
+                              {info.acum.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
+
+                {/* ── Expanded component detail ── */}
+                {isOpen && (
+                  <div className="border-t border-white/5 px-5 pb-5 pt-4 space-y-1.5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-3">
+                      Detalle de componentes
+                    </p>
+                    {comps.length === 0 && (
+                      <p className="text-[10px] text-white/20 italic text-center py-3">Sin componentes disponibles</p>
+                    )}
+                    {comps.map((comp, i) => (
+                      <div key={i} className={`flex items-center justify-between py-2.5 px-3 rounded-xl ${
+                        isSubComponent(comp) ? 'ml-5 border-l-2 border-accent/15 bg-white/[0.02]' : 'bg-white/[0.04]'
+                      }`}>
+                        <div className="flex-1 min-w-0 pr-3">
+                          <p className={`text-[10px] font-bold truncate ${isSubComponent(comp) ? 'text-white/45' : 'text-white/80'}`}>
+                            {comp.name?.replace(/^\d+_/, '').replace(/-/g, ' ') || '—'}
+                          </p>
+                          <div className="flex gap-3 mt-0.5 flex-wrap">
+                            {comp.weight && <span className="text-[8px] text-white/20">Peso: {comp.weight}%</span>}
+                            {comp.mustPass === 'Sí' && <span className="text-[8px] text-yellow-400/50">Obligatorio</span>}
+                          </div>
+                        </div>
+                        <span className={`text-sm font-black flex-shrink-0 tabular-nums ${gradeColor(comp.score)}`}>
+                          {comp.score || '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#0c0e14] text-white font-sans selection:bg-accent/40 selection:text-white overflow-x-hidden">
       <header className="glass sticky top-0 z-[60] px-6 py-7 flex items-center justify-between border-b border-white/5 backdrop-blur-3xl shadow-2xl">
@@ -1377,14 +1966,16 @@ const App = () => {
         <div key={activeTab} className="animate-fade-in">
           {activeTab === 'home' && HomeView()}
           {activeTab === 'wallet' && CuentasView()}
+          {activeTab === 'notas' && NotasUpaoView()}
         </div>
       </main>
 
-      <div className="fixed bottom-8 left-0 right-0 z-[60] px-6 sm:px-0 pointer-events-none">
-        <nav className="max-w-[340px] mx-auto bg-[#1a1f2e]/90 backdrop-blur-3xl p-3 rounded-[50px] flex justify-between items-center shadow-[0_40px_80px_rgba(0,0,0,0.8)] border border-white/10 pointer-events-auto">
-          <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center py-4 rounded-[40px] transition-all ${activeTab === 'home' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><Home size={24} /><span className="text-[9px] font-black uppercase mt-1.5">Métricas</span></button>
-          <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario:'', fecha: '', cuentaId: '', grupoId: ''}); setIsTxModal(true) }} className="w-16 h-16 rounded-full bg-accent flex items-center justify-center text-white mx-3 shadow-2xl active:scale-95 transition-transform"><PlusCircle size={38} /></button>
-          <button onClick={() => setActiveTab('wallet')} className={`flex-1 flex flex-col items-center py-4 rounded-[40px] transition-all ${activeTab === 'wallet' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><Wallet size={24} /><span className="text-[9px] font-black uppercase mt-1.5">Billeteras</span></button>
+      <div className="fixed bottom-8 left-0 right-0 z-[60] px-4 sm:px-0 pointer-events-none">
+        <nav className="max-w-[400px] mx-auto bg-[#1a1f2e]/90 backdrop-blur-3xl p-3 rounded-[50px] flex justify-between items-center shadow-[0_40px_80px_rgba(0,0,0,0.8)] border border-white/10 pointer-events-auto">
+          <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center py-3.5 rounded-[40px] transition-all ${activeTab === 'home' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><Home size={22} /><span className="text-[8px] font-black uppercase mt-1">Métricas</span></button>
+          <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario:'', fecha: '', cuentaId: '', grupoId: ''}); setIsTxModal(true) }} className="w-14 h-14 rounded-full bg-accent flex items-center justify-center text-white mx-2 shadow-2xl active:scale-95 transition-transform flex-shrink-0"><PlusCircle size={34} /></button>
+          <button onClick={() => setActiveTab('wallet')} className={`flex-1 flex flex-col items-center py-3.5 rounded-[40px] transition-all ${activeTab === 'wallet' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><Wallet size={22} /><span className="text-[8px] font-black uppercase mt-1">Billeteras</span></button>
+          <button onClick={() => setActiveTab('notas')} className={`flex-1 flex flex-col items-center py-3.5 rounded-[40px] transition-all ${activeTab === 'notas' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><GraduationCap size={22} /><span className="text-[8px] font-black uppercase mt-1">Notas</span></button>
         </nav>
       </div>
 

@@ -22,8 +22,21 @@ services:
       - DATABASE_URL=mysql://root:SistemaCuentas2026Secure@sistemacuentas-mysql:3306/sistema_cuentas
       - PORT=3001
       - NODE_ENV=production
+      - SCRAPER_URL=http://sistemacuentas-scraper:8000
     depends_on:
       - sistemacuentas-mysql
+      - sistemacuentas-scraper
+    networks:
+      - sistemacuentas_net
+
+  sistemacuentas-scraper:
+    build:
+      context: ./scraper
+    container_name: sistemacuentas-scraper
+    restart: always
+    environment:
+      - UPAO_USER=000280169
+      - UPAO_PASS=AlmiGamer12
     networks:
       - sistemacuentas_net
 

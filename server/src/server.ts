@@ -680,6 +680,56 @@ app.get('/api/export/excel', async (req, res) => {
   }
 });
 
+// ────────────────────────────── NOTAS UPAO ──────────────────────────────
+
+const SCRAPER_URL = process.env.SCRAPER_URL || 'http://sistemacuentas-scraper:8000';
+
+app.get('/api/notas-upao', async (req, res) => {
+  try {
+    const user = (req.query.user as string) || process.env.UPAO_USER || 'default';
+    const cache = await prisma.notasUpao.findUnique({ where: { id: user } });
+    if (!cache) return res.json({ cursos: [], updatedAt: null });
+    res.json({ cursos: cache.cursos, updatedAt: cache.updatedAt });
+  } catch {
+    res.status(500).json({ error: 'Error leyendo notas' });
+  }
+});
+
+app.post('/api/notas-upao/refresh', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = username || process.env.UPAO_USER || 'default';
+    const scrapeBody: any = {};
+    if (username) scrapeBody.username = username;
+    if (password) scrapeBody.password = password;
+    let resp: Response;
+    try {
+      resp = await fetch(`${SCRAPER_URL}/scrape`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(scrapeBody),
+      });
+    } catch {
+      return res.status(503).json({
+        error: `No se pudo conectar al scraper (${SCRAPER_URL}). ¿Está corriendo? Ejecuta: cd scraper && uvicorn app:app --port 8000`,
+      });
+    }
+    if (!resp.ok) {
+      const err = await resp.text();
+      return res.status(502).json({ error: `Scraper error: ${err}` });
+    }
+    const { cursos } = await resp.json() as { cursos: any[] };
+    const saved = await prisma.notasUpao.upsert({
+      where: { id: user },
+      update: { cursos: cursos as any },
+      create: { id: user, cursos: cursos as any },
+    });
+    res.json({ ok: true, cursos: saved.cursos, updatedAt: saved.updatedAt });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Error al actualizar notas' });
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`✅ Servidor en Puerto ${PORT}`);

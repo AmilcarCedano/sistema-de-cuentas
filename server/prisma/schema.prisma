@@ -97,3 +97,9 @@ model Nota {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model NotasUpao {
+  id        String   @id
+  cursos    Json
+  updatedAt DateTime @updatedAt
+}
