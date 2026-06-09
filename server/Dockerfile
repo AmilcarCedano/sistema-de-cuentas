@@ -11,8 +11,8 @@ RUN pip3 install playwright --break-system-packages
 # Instala Chromium y todas sus dependencias del sistema de una vez
 RUN python3 -m playwright install chromium --with-deps
 
-# Node.js deps
-COPY package*.json ./
+# Node.js deps (usar package.json del servidor, no el raíz)
+COPY server/package*.json ./
 RUN npm install
 
 # Código del servidor
