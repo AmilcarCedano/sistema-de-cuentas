@@ -63,8 +63,8 @@ CHROMIUM_ARGS = _build_chromium_args()
 
 app = FastAPI()
 
-USERNAME = os.environ.get("UPAO_USER", "000280169")
-PASSWORD = os.environ.get("UPAO_PASS", "AlmiGamer12")
+USERNAME = os.environ.get("UPAO_USER", "")
+PASSWORD = os.environ.get("UPAO_PASS", "")
 
 CURSO_NOMBRES = {
     "ISIA 107": "Infraestructura como Código",
@@ -153,6 +153,34 @@ async def scrape_grades(user: str = None, pwd: str = None):
         await page.wait_for_selector("#courseWorkContainer", timeout=20000)
         await _nw(page, 5000)
 
+        # 5b. Extraer nombres de cursos ANTES de entrar a componentes
+        # La vista principal tiene una tabla con código + nombre completo del curso
+        nombres_map = await page.evaluate("""() => {
+            const clean = (txt) => txt.trim().replace(/\\s+/g,' ')
+                .replace(/press enter key.*/i, '').trim();
+            const map = {};
+            // Buscar filas de la tabla con código y título de curso
+            document.querySelectorAll('table tbody tr, [xe-section] tr').forEach(row => {
+                const cells = {};
+                row.querySelectorAll('[xe-field]').forEach(td => {
+                    cells[td.getAttribute('xe-field')] = clean(td.textContent);
+                });
+                // Banner XE usa courseReferenceNumber (CRN) y courseTitle / subject+courseNumber
+                const crn   = cells['courseReferenceNumber'] || cells['crn'] || '';
+                const title = cells['courseTitle'] || cells['title'] || '';
+                const subj  = cells['subject'] || '';
+                const num   = cells['courseNumber'] || '';
+                const code  = subj && num ? (subj + ' ' + num) : '';
+                if (title && code) map[code] = title;
+                if (title && crn)  map[crn]  = title;
+            });
+            return map;
+        }""")
+
+        # Filtrar entradas inválidas (headers de tabla como 'CRN': 'Course Title')
+        nombres_map = {k: v for k, v in nombres_map.items()
+                       if v and v.lower() not in ('course title', 'crn', '')}
+
         # 6. Entrar a la vista de componentes
         await page.locator("a:has-text('Components'), button:has-text('Components')").first.click()
         await _nw(page, 5000)
@@ -212,10 +240,39 @@ async def scrape_grades(user: str = None, pwd: str = None):
                 return info;
             }""")
 
+            import re as _re
+
+            def _clean_name(txt: str) -> str:
+                txt = _re.sub(r'(?i)\s*press\s+enter\s+key.*', '', txt)
+                return _re.sub(r'\s+', ' ', txt).strip()
+
             parts = course_txt.split("|")
-            codigo = parts[0].strip()
+            code_part = parts[0].strip()
             nrc = parts[1].strip() if len(parts) > 1 else ""
-            nombre = CURSO_NOMBRES.get(codigo, codigo)
+
+            # Separar código de nombre si el dropdown incluye " - Nombre"
+            code_name_split = code_part.split(" - ", 1)
+            codigo = code_name_split[0].strip()
+            name_from_dropdown = _clean_name(code_name_split[1]) if len(code_name_split) > 1 else ""
+
+            # Extraer nombre desde los componentes del curso (xe-field="courseTitle" en tbody)
+            name_from_components = ""
+            for comp in data.get("componentes", []):
+                raw = comp.get("courseTitle", "").strip()
+                if raw and raw.lower() not in ("course title", ""):
+                    name_from_components = _clean_name(raw)
+                    break
+
+            # Prioridad: 1) dict hardcodeado  2) vista principal (nombres_map)
+            #            3) componentes  4) dropdown  5) código
+            nombre = (
+                CURSO_NOMBRES.get(codigo)
+                or nombres_map.get(codigo)
+                or nombres_map.get(nrc)
+                or name_from_components
+                or name_from_dropdown
+                or codigo
+            )
 
             all_courses.append({
                 "nrc": course_txt,

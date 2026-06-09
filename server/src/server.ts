@@ -12,22 +12,13 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const prisma = new PrismaClient();
 
-// ── Auto-inicio del scraper cuando SCRAPER_URL apunta a localhost ──
-const SCRAPER_URL_ENV = process.env.SCRAPER_URL || 'http://sistemacuentas-scraper:8000';
-if (SCRAPER_URL_ENV.includes('localhost') || SCRAPER_URL_ENV.includes('127.0.0.1')) {
-  const scraperDir = path.resolve(__dirname, '../../scraper');
-  const scraperProc = spawn('python', ['-m', 'uvicorn', 'app:app', '--port', '8000', '--log-level', 'warning'], {
-    cwd: scraperDir,
-    detached: false,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  scraperProc.stdout?.on('data', (d: Buffer) => process.stdout.write(`[scraper] ${d}`));
-  scraperProc.stderr?.on('data', (d: Buffer) => process.stderr.write(`[scraper] ${d}`));
-  scraperProc.on('error', (e) => console.error('[scraper] No se pudo iniciar:', e.message));
-  scraperProc.on('exit', (code) => code && console.warn(`[scraper] Proceso terminó (code ${code})`));
-  process.on('exit', () => scraperProc.kill());
-  console.log('✅ Scraper iniciado automáticamente en :8000');
-}
+// Ruta al script one-shot del scraper (muere completamente al terminar)
+// Docker: /app/src/../scraper/  ─→  /app/scraper/
+// Local:  server/src/../../scraper/
+const SCRAPER_SCRIPT = process.env.SCRAPER_SCRIPT
+  || path.resolve(__dirname, '../scraper/scrape_once.py');
+const PYTHON_CMD = process.env.PYTHON_CMD
+  || (process.platform === 'win32' ? 'python' : 'python3');
 
 app.use(cors());
 app.use(express.json());
@@ -705,8 +696,6 @@ app.get('/api/export/excel', async (req, res) => {
 
 // ────────────────────────────── NOTAS UPAO ──────────────────────────────
 
-const SCRAPER_URL = process.env.SCRAPER_URL || 'http://sistemacuentas-scraper:8000';
-
 app.get('/api/notas-upao', async (req, res) => {
   try {
     const user = (req.query.user as string) || process.env.UPAO_USER || 'default';
@@ -720,33 +709,66 @@ app.get('/api/notas-upao', async (req, res) => {
 
 app.post('/api/notas-upao/refresh', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password } = req.body || {};
     const user = username || process.env.UPAO_USER || 'default';
-    const scrapeBody: any = {};
-    if (username) scrapeBody.username = username;
-    if (password) scrapeBody.password = password;
-    let resp: Response;
-    try {
-      resp = await fetch(`${SCRAPER_URL}/scrape`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(scrapeBody),
-      });
-    } catch {
-      return res.status(503).json({
-        error: `No se pudo conectar al scraper (${SCRAPER_URL}). ¿Está corriendo? Ejecuta: cd scraper && uvicorn app:app --port 8000`,
-      });
-    }
-    if (!resp.ok) {
-      const err = await resp.text();
-      return res.status(502).json({ error: `Scraper error: ${err}` });
-    }
-    const { cursos } = await resp.json() as { cursos: any[] };
-    const saved = await prisma.notasUpao.upsert({
-      where: { id: user },
-      update: { cursos: cursos as any },
-      create: { id: user, cursos: cursos as any },
+
+    // Variables de entorno para el proceso hijo
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    if (username) env.UPAO_USER = username;
+    if (password) env.UPAO_PASS = password;
+
+    console.log(`[scraper] Iniciando ${PYTHON_CMD} ${SCRAPER_SCRIPT}`);
+
+    let stdout = '';
+    let stderr = '';
+
+    const proc = spawn(PYTHON_CMD, [SCRAPER_SCRIPT], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
+
+    proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr?.on('data', (d: Buffer) => {
+      stderr += d.toString();
+      process.stderr.write(`[scraper] ${d}`);
+    });
+
+    const outcome = await new Promise<{ ok: boolean; cursos?: any[]; error?: string }>((resolve) => {
+      const timer = setTimeout(() => {
+        proc.kill('SIGKILL');
+        resolve({ ok: false, error: 'Tiempo de espera agotado (120s)' });
+      }, 120_000);
+
+      proc.on('error', (e) => {
+        clearTimeout(timer);
+        resolve({ ok: false, error: `No se pudo iniciar Python: ${e.message}` });
+      });
+
+      proc.on('close', (code) => {
+        clearTimeout(timer);
+        console.log(`[scraper] Proceso terminó (code ${code})`);
+        if (code !== 0) {
+          resolve({ ok: false, error: stderr.trim() || `Scraper falló (código ${code})` });
+          return;
+        }
+        try {
+          resolve({ ok: true, cursos: JSON.parse(stdout.trim()) });
+        } catch {
+          resolve({ ok: false, error: 'Error parseando resultado del scraper' });
+        }
+      });
+    });
+
+    if (!outcome.ok || !outcome.cursos) {
+      return res.status(500).json({ error: outcome.error || 'Error desconocido' });
+    }
+
+    const saved = await prisma.notasUpao.upsert({
+      where:  { id: user },
+      update: { cursos: outcome.cursos as any },
+      create: { id: user, cursos: outcome.cursos as any },
+    });
+
     res.json({ ok: true, cursos: saved.cursos, updatedAt: saved.updatedAt });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Error al actualizar notas' });

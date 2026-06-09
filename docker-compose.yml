@@ -6,8 +6,8 @@ services:
     container_name: sistemacuentas-mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: SistemaCuentas2026Secure
-      MYSQL_DATABASE: sistema_cuentas
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-sistema_cuentas}
     volumes:
       - sistemacuentas_db_data:/var/lib/mysql
     networks:
@@ -15,28 +15,20 @@ services:
 
   sistemacuentas-backend:
     build:
-      context: ./server
+      context: .
+      dockerfile: server/Dockerfile
     container_name: sistemacuentas-backend
     restart: always
     environment:
-      - DATABASE_URL=mysql://root:SistemaCuentas2026Secure@sistemacuentas-mysql:3306/sistema_cuentas
+      - DATABASE_URL=mysql://root:${MYSQL_ROOT_PASSWORD}@sistemacuentas-mysql:3306/${MYSQL_DATABASE:-sistema_cuentas}
       - PORT=3001
       - NODE_ENV=production
-      - SCRAPER_URL=http://sistemacuentas-scraper:8000
+      - UPAO_USER=${UPAO_USER}
+      - UPAO_PASS=${UPAO_PASS}
+      - SCRAPER_SCRIPT=/app/scraper/scrape_once.py
+      - PYTHON_CMD=python3
     depends_on:
       - sistemacuentas-mysql
-      - sistemacuentas-scraper
-    networks:
-      - sistemacuentas_net
-
-  sistemacuentas-scraper:
-    build:
-      context: ./scraper
-    container_name: sistemacuentas-scraper
-    restart: always
-    environment:
-      - UPAO_USER=000280169
-      - UPAO_PASS=AlmiGamer12
     networks:
       - sistemacuentas_net
 

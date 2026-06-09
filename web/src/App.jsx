@@ -29,8 +29,8 @@ const getSummary = (transactions = []) => {
 
 const Modal = ({ title, children, onClose }) => (
   <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in">
-    <div className="bg-[#1a1f2e] w-full max-w-md rounded-t-[40px] sm:rounded-[40px] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto p-8 border-b-0 sm:border-b">
-      <div className="flex justify-between items-center mb-8 sticky top-0 bg-[#1a1f2e] z-10 py-2">
+    <div className="bg-white/[0.05] w-full max-w-md rounded-t-[40px] sm:rounded-[40px] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto p-8 border-b-0 sm:border-b">
+      <div className="flex justify-between items-center mb-8 sticky top-0 bg-white/[0.05] z-10 py-2">
         <h3 className="text-2xl font-black tracking-tight text-white">{title}</h3>
         <button onClick={onClose} className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all"><X size={26} className="text-white"/></button>
       </div>
@@ -44,7 +44,7 @@ const Amount = ({ val, incognito, className }) => (
 )
 
 const Accordion = ({ title, icon: Icon, open, onToggle, children, actions }) => (
-  <div className="bg-[#141824] rounded-[30px] border border-white/5 overflow-hidden transition-all duration-300">
+  <div className="bg-white/[0.03] rounded-[30px] border border-white/5 overflow-hidden transition-all duration-300">
     <div className="p-4 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between cursor-pointer hover:bg-white/5 transition-colors gap-3" onClick={onToggle}>
       <div className="flex items-center justify-between w-full xl:w-auto">
         <h3 className="text-[11px] font-black uppercase tracking-widest text-[#aab3cc] flex items-center gap-3 truncate pr-2">
@@ -296,6 +296,9 @@ const App = () => {
   const [showKpiSettings, setShowKpiSettings] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
   const [syncError, setSyncError] = useState(null)
+  const [appReady, setAppReady] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const syncDelayRef = useRef(null)
   
   // Historial view mode
   const [historialMode, setHistorialMode] = useState('list') // 'list' | 'split'
@@ -346,11 +349,11 @@ const App = () => {
   const [upaoProfiles, setUpaoProfiles] = useState(() => {
     try {
       const s = localStorage.getItem('upao_profiles')
-      return s ? JSON.parse(s) : [{ id: '000280169', nombre: 'Yo', usuario: '000280169', password: '' }]
-    } catch { return [{ id: '000280169', nombre: 'Yo', usuario: '000280169', password: '' }] }
+      return s ? JSON.parse(s) : [{ id: 'default', nombre: 'Yo', usuario: '', password: '' }]
+    } catch { return [{ id: 'default', nombre: 'Yo', usuario: '', password: '' }] }
   })
   const [activeProfileId, setActiveProfileId] = useState(
-    () => localStorage.getItem('upao_active_profile') || '000280169'
+    () => localStorage.getItem('upao_active_profile') || 'default'
   )
   const [showAddProfile, setShowAddProfile] = useState(false)
   const [profileForm, setProfileForm] = useState({ nombre: '', usuario: '', password: '' })
@@ -386,6 +389,8 @@ const App = () => {
 
   // --- DATA LOADING ---
   const cargarCuentas = useCallback(async (showError = true) => {
+    // Solo mostrar indicador si tarda más de 400ms (conexión lenta)
+    syncDelayRef.current = setTimeout(() => setIsSyncing(true), 400)
     try {
       const resp = await fetch(`${API}/cuentas`)
       if (resp.ok) {
@@ -395,9 +400,12 @@ const App = () => {
       } else {
         if (showError) setSyncError('Error de sincronización')
       }
-    } catch (e) { 
+    } catch (e) {
       setIsOnline(false)
       if (showError) setSyncError('Sin conexión al servidor')
+    } finally {
+      clearTimeout(syncDelayRef.current)
+      setIsSyncing(false)
     }
   }, [])
 
@@ -484,9 +492,8 @@ const App = () => {
   }
 
   useEffect(() => {
-    cargarCuentas(false)
-    cargarNotas()
-    cargarNotasUpao()
+    Promise.all([cargarCuentas(false), cargarNotas(), cargarNotasUpao()])
+      .finally(() => setAppReady(true))
     const interval = setInterval(() => cargarCuentas(false), 5000)
     return () => clearInterval(interval)
   }, [])
@@ -982,7 +989,7 @@ const App = () => {
       </div>
 
       {showKpiSettings && (
-        <div className="p-6 bg-[#1a1f2e] rounded-[30px] border border-white/10 animate-slide-down shadow-xl mb-4 mx-2">
+        <div className="p-6 bg-white/[0.05] rounded-[30px] border border-white/10 animate-slide-down shadow-xl mb-4 mx-2">
           <p className="text-[10px] font-black uppercase text-accent mb-4 pl-1">Seleccionar Cuentas Visibles</p>
           <div className="flex flex-wrap gap-2">
             {cuentas.map(c => (
@@ -1036,7 +1043,7 @@ const App = () => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {notas.map(n => (
-            <div key={n.id} onClick={() => handleEditNote(n)} className="relative p-6 rounded-[28px] border border-white/5 bg-[#141824] cursor-pointer hover:border-warning/30 transition-all shadow-sm border-l-[4px]" style={{ borderLeftColor: n.color || '#fcd34d' }}>
+            <div key={n.id} onClick={() => handleEditNote(n)} className="relative p-6 rounded-[28px] border border-white/5 bg-white/[0.03] cursor-pointer hover:border-warning/30 transition-all shadow-sm border-l-[4px]" style={{ borderLeftColor: n.color || '#fcd34d' }}>
               <button 
                 onClick={(e) => { e.stopPropagation(); handleDeleteNote(n.id) }} 
                 className="absolute top-4 right-4 p-2 text-white/20 hover:text-danger hover:bg-danger/10 rounded-xl transition-all"
@@ -1053,7 +1060,7 @@ const App = () => {
       {/* ── PAGOS MENSUALES ── */}
       <section className="px-2">
         <div className="flex justify-between items-center mb-4 mt-6">
-          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[#aab3cc] flex items-center gap-2"><Repeat size={14} className="text-purple-400" /> Pagos Mensuales</h3>
+          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[#aab3cc] flex items-center gap-2"><Repeat size={14} className="text-accent" /> Pagos Mensuales</h3>
         </div>
 
         {pagosProximos.length > 0 && (
@@ -1115,7 +1122,7 @@ const App = () => {
                         <button onClick={() => handlePayCurrentMonth(p)} className="px-3 py-1.5 bg-green-500/20 text-green-400 text-[9px] font-black uppercase rounded-lg hover:bg-green-500/30 transition-all">
                           Pagar este mes
                         </button>
-                        <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[9px] font-black uppercase rounded-lg hover:bg-purple-500/30 transition-all">
+                        <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-accent/15 text-accent text-[9px] font-black uppercase rounded-lg hover:bg-accent/25 transition-all">
                           {yaPagado ? `Pagar ${getMesNombre(mesSigKey).split(' ')[0]}` : `Pagar ${getMesNombre(mesActualKey).split(' ')[0]}`}
                         </button>
                       </>
@@ -1132,9 +1139,9 @@ const App = () => {
 
   const CuentasView = () => (
     <div className="space-y-6 pb-40">
-      <header className="flex justify-between items-center bg-[#1a1f2e]/90 backdrop-blur-md p-5 rounded-[30px] border border-white/10 sticky top-[84px] z-30 shadow-2xl">
+      <header className="flex justify-between items-center bg-white/[0.05]/90 backdrop-blur-md p-5 rounded-[30px] border border-white/10 sticky top-[84px] z-30 shadow-2xl">
         <h2 className="text-lg font-black tracking-tighter text-white">Billeteras & Caja</h2>
-        <button onClick={() => { setAccountForm({nombre:'', color:'#3b82f6', id: ""}); setIsAccountModal(true) }} className="bg-accent text-white py-2.5 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all">Crear Billetera</button>
+        <button onClick={() => { setAccountForm({nombre:'', color:'#3b82f6', id: ""}); setIsAccountModal(true) }} className="bg-white/90 text-[#111] py-2.5 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:brightness-95 active:scale-95 transition-all">Crear Cuenta</button>
       </header>
 
       <div className="space-y-6">
@@ -1147,7 +1154,7 @@ const App = () => {
           const isCerrada = c.estado === 'cerrada'
           
           return (
-            <div key={c.id} className={`rounded-[40px] border transition-all duration-300 ${isCerrada ? 'border-yellow-500/30 bg-[#1a1a10]' : ''} ${isSelected ? 'border-accent bg-[#1a1f2e] shadow-2xl mt-4 mb-8 scale-[1.01]' : !isCerrada ? 'border-white/5 bg-[#141824] hover:bg-[#1a1f2e] shadow-md' : ''}`}>
+            <div key={c.id} className={`rounded-[40px] border transition-all duration-300 ${isCerrada ? 'border-yellow-500/30 bg-[#1a1a10]' : ''} ${isSelected ? 'border-accent bg-white/[0.05] shadow-2xl mt-4 mb-8 scale-[1.01]' : !isCerrada ? 'border-white/5 bg-white/[0.03] hover:bg-white/[0.05] shadow-md' : ''}`}>
               <div className="p-8 flex items-center justify-between cursor-pointer" onClick={() => handleSelectAccount(c.id)}>
                 <div className="flex items-center gap-6">
                     <div className="relative">
@@ -1232,14 +1239,14 @@ const App = () => {
                           />
                           <div className="flex gap-3">
                             <button onClick={() => setCatFormOpen(null)} className="flex-1 py-3.5 bg-white/5 rounded-2xl text-[10px] font-black text-white/40 hover:text-white/60 transition-all">Cancelar</button>
-                            <button onClick={() => handleSaveCategory(c.id)} className="flex-1 py-3.5 bg-accent rounded-2xl text-[10px] font-black text-white shadow-lg hover:brightness-110 active:scale-95 transition-all">Guardar</button>
+                            <button onClick={() => handleSaveCategory(c.id)} className="flex-1 py-3.5 bg-white/90 rounded-2xl text-[10px] font-black text-[#111] shadow-lg hover:brightness-95 active:scale-95 transition-all">Guardar</button>
                           </div>
                         </div>
                       ) : importAccountOpen === c.id ? (
                         <div className="bg-white/5 p-5 rounded-2xl space-y-4 animate-slide-down border border-white/5">
                            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">Selecciona la cuenta de origen</p>
                            <select 
-                               className="w-full bg-[#141824] border border-white/10 py-3.5 px-5 rounded-2xl text-white font-bold text-sm outline-none transition-all"
+                               className="w-full bg-white/[0.03] border border-white/10 py-3.5 px-5 rounded-2xl text-white font-bold text-sm outline-none transition-all"
                                onChange={(e) => handleImportGroups(c.id, e.target.value)}
                                defaultValue=""
                            >
@@ -1290,7 +1297,7 @@ const App = () => {
                   {hasManual && (
                      <Accordion title="Auditoría de Arqueo" icon={ShieldCheck} open={uiState.accAudit} onToggle={() => setUiState(s => ({...s, accAudit: !s.accAudit}))}>
                          <div className="space-y-6 mt-2">
-                             <div className="bg-[#141824] rounded-3xl p-2 border border-white/5 max-h-[300px] overflow-y-auto custom-scrollbar">
+                             <div className="bg-white/[0.03] rounded-3xl p-2 border border-white/5 max-h-[300px] overflow-y-auto custom-scrollbar">
                                  <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-accent/60 px-4 py-3 border-b border-white/5"><span>Saldos Físicos Detectados</span></div>
                                  {c.saldosManuales.map(m => (
                                      <div key={m.id} className="flex justify-between items-center p-4 py-3 last:border-none border-b border-white/5">
@@ -1315,7 +1322,7 @@ const App = () => {
 
                   {/* ── PAGOS MENSUALES ── */}
                   <Accordion title={`Pagos Mensuales (${(c.pagosMensuales || []).length})`} icon={Repeat} open={uiState.accPagos} onToggle={() => setUiState(s => ({...s, accPagos: !s.accPagos}))}
-                    actions={!isCerrada && <button onClick={(e) => { e.stopPropagation(); setPagoMode('create'); setPagoForm({ id: '', nombre: '', monto: '', diaPago: '', comentario: '', cuentaId: c.id, grupoId: '' }); setIsPagoModal(true) }} className="p-1.5 bg-white/5 rounded-lg text-purple-400 hover:bg-purple-500/20 transition-all"><PlusCircle size={14} /></button>}
+                    actions={!isCerrada && <button onClick={(e) => { e.stopPropagation(); setPagoMode('create'); setPagoForm({ id: '', nombre: '', monto: '', diaPago: '', comentario: '', cuentaId: c.id, grupoId: '' }); setIsPagoModal(true) }} className="p-1.5 bg-white/5 rounded-lg text-accent hover:bg-accent/15 transition-all"><PlusCircle size={14} /></button>}
                   >
                     <div className="space-y-2 mt-2">
                       {(c.pagosMensuales || []).length === 0 && <p className="text-[10px] text-white/20 italic text-center py-4">Sin pagos mensuales configurados.</p>}
@@ -1324,9 +1331,9 @@ const App = () => {
                         const yaPagado = p.mesPagado === mesActualKey
                         const mesSigKey = getMesSiguiente(mesActualKey)
                         return (
-                          <div key={p.id} className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all gap-2 ${yaPagado ? 'border-green-500/20 bg-green-500/5' : p.activo ? 'border-purple-500/15 bg-purple-500/5' : 'border-white/5 bg-white/3 opacity-50'}`}>
+                          <div key={p.id} className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all gap-2 ${yaPagado ? 'border-green-500/20 bg-green-500/5' : p.activo ? 'border-accent/15 bg-accent/5' : 'border-white/5 bg-white/3 opacity-50'}`}>
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <Repeat size={14} className={`flex-shrink-0 ${yaPagado ? 'text-green-400' : 'text-purple-400'}`} />
+                              <Repeat size={14} className={`flex-shrink-0 ${yaPagado ? 'text-green-400' : 'text-accent'}`} />
                               <div className="min-w-0">
                                 <p className={`text-sm font-bold ${p.activo ? 'text-white/90' : 'text-white/30 line-through'}`}>{p.nombre}</p>
                                 <p className="text-[8px] font-black text-white/20 uppercase">
@@ -1344,7 +1351,7 @@ const App = () => {
                                   <button onClick={() => handlePayCurrentMonth(p)} className="px-3 py-1.5 bg-green-500/20 text-green-400 text-[9px] font-black uppercase rounded-lg hover:bg-green-500/30 transition-all">
                                     Pagar este mes
                                   </button>
-                                  <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[9px] font-black uppercase rounded-lg hover:bg-purple-500/30 transition-all">
+                                  <button onClick={() => handlePayPago(p)} className="px-3 py-1.5 bg-accent/15 text-accent text-[9px] font-black uppercase rounded-lg hover:bg-accent/25 transition-all">
                                     {yaPagado ? `Pagar ${getMesNombre(mesSigKey).split(' ')[0]}` : `Pagar ${getMesNombre(mesActualKey).split(' ')[0]}`}
                                   </button>
                                 </>
@@ -1365,13 +1372,13 @@ const App = () => {
                     actions={
                       <div className="flex flex-wrap items-center justify-end gap-1.5 w-full">
                         <select 
-                          className="bg-[#141824] border border-white/10 text-white/90 text-[9px] font-black uppercase rounded-lg px-2 py-1.5 outline-none cursor-pointer shadow-sm hover:bg-white/5 transition-all max-w-[120px] sm:max-w-none"
+                          className="bg-white/[0.03] border border-white/10 text-white/90 text-[9px] font-black uppercase rounded-lg px-2 py-1.5 outline-none cursor-pointer shadow-sm hover:bg-white/5 transition-all max-w-[120px] sm:max-w-none"
                           value={filterCategory}
                           onChange={(e) => setFilterCategory(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <option value="" className="bg-[#141824] text-white">TODAS</option>
-                          {(c.grupos || []).map(g => <option key={g.id} value={g.nombre} className="bg-[#141824] text-white">{g.nombre}</option>)}
+                          <option value="" className="bg-white/[0.03] text-white">TODAS</option>
+                          {(c.grupos || []).map(g => <option key={g.id} value={g.nombre} className="bg-white/[0.03] text-white">{g.nombre}</option>)}
                         </select>
                         <button 
                           onClick={(e) => { e.stopPropagation(); setLockOrder(!lockOrder); }}
@@ -1527,13 +1534,12 @@ const App = () => {
   const NotasUpaoView = () => {
     const PASS  = 10.5
     const PARTS = [['EP1', 20], ['EVP', 30], ['EP2', 20], ['EVF', 30]]
-    const activeProfile = upaoProfiles.find(p => p.id === activeProfileId) || upaoProfiles[0]
 
     const gradeColor = (val) => {
       const n = parseFloat(val)
-      if (!val || isNaN(n)) return 'text-white/30'
-      if (n >= 14)   return 'text-[#10b981]'
-      if (n >= PASS) return 'text-yellow-400'
+      if (!val || isNaN(n)) return 'text-white/25'
+      if (n >= 14)   return 'text-[#34d399]'
+      if (n >= PASS) return 'text-white/50'
       return 'text-[#ef4444]'
     }
 
@@ -1573,24 +1579,25 @@ const App = () => {
     }
 
     return (
-      <div className="space-y-5 pb-40">
+      <div className="space-y-4 pb-32">
 
         {/* ── Header ── */}
-        <div className="flex justify-between items-center px-2">
-          <div>
-            <h2 className="text-lg font-black text-white/90 uppercase tracking-widest flex items-center gap-2">
-              <GraduationCap size={20} className="text-accent" /> Notas UPAO
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-black text-white/90 uppercase tracking-widest flex items-center gap-2">
+              <GraduationCap size={18} className="text-accent flex-shrink-0" /> Notas UPAO
             </h2>
             {notasUpao.updatedAt && (
-              <p className="text-[9px] text-white/30 uppercase tracking-widest mt-1 pl-1">
+              <p className="text-[9px] text-white/25 mt-0.5 truncate">
                 Actualizado: {new Date(notasUpao.updatedAt).toLocaleString()}
               </p>
             )}
           </div>
           <button onClick={handleRefreshNotas} disabled={upaoLoading}
-            className="flex items-center gap-2 px-5 py-3 bg-accent/10 border border-accent/30 rounded-2xl text-accent text-[10px] font-black uppercase tracking-widest hover:bg-accent/20 transition-all disabled:opacity-50 active:scale-95">
-            <RefreshCw size={16} className={upaoLoading ? 'animate-spin' : ''} />
-            {upaoLoading ? 'Cargando...' : 'Actualizar'}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.07] border border-white/15 rounded-2xl text-white/70 text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-50 active:scale-95 flex-shrink-0">
+            <RefreshCw size={14} className={upaoLoading ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">{upaoLoading ? 'Cargando...' : 'Actualizar'}</span>
+            <span className="sm:hidden">{upaoLoading ? '...' : 'Actualizar'}</span>
           </button>
         </div>
 
@@ -1598,53 +1605,53 @@ const App = () => {
         <div className="flex items-center gap-2 flex-wrap">
           {upaoProfiles.map(p => (
             <button key={p.id} onClick={() => handleSwitchProfile(p.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-[10px] font-black transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[10px] font-black transition-all ${
                 p.id === activeProfileId
-                  ? 'bg-accent text-white shadow-lg shadow-accent/25'
-                  : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70'
+                  ? 'bg-white/[0.12] border border-white/25 text-white shadow-sm'
+                  : 'bg-white/[0.04] border border-transparent text-white/45 hover:bg-white/[0.08] hover:text-white/65'
               }`}>
               <span>{p.id === activeProfileId ? '😊' : '👤'}</span>
-              <span>{p.nombre}</span>
-              {upaoProfiles.length > 1 && p.id !== activeProfileId && (
-                <button onClick={e => { e.stopPropagation(); handleDeleteProfile(p.id) }}
-                  className="ml-1 opacity-40 hover:opacity-100 text-red-400 transition-opacity">
+              <span className="truncate max-w-[80px]">{p.nombre}</span>
+              {upaoProfiles.length > 1 && p.id !== upaoProfiles[0].id && (
+                <span onClick={e => { e.stopPropagation(); handleDeleteProfile(p.id) }}
+                  className="ml-0.5 opacity-40 hover:opacity-100 text-red-400 transition-opacity cursor-pointer">
                   <X size={10} />
-                </button>
+                </span>
               )}
             </button>
           ))}
           <button onClick={() => setShowAddProfile(v => !v)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-[10px] font-black transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[10px] font-black transition-all ${
               showAddProfile ? 'bg-white/10 text-white' : 'bg-white/5 text-white/30 hover:bg-white/8 hover:text-white/60'
             }`}>
-            <PlusCircle size={13} /> Agregar
+            <PlusCircle size={12} /> Agregar
           </button>
         </div>
 
         {/* ── Formulario agregar perfil ── */}
         {showAddProfile && (
-          <div className="bg-[#1a1f2e] rounded-[24px] border border-white/10 p-5 space-y-3 animate-slide-down">
+          <div className="rounded-[22px] border border-white/10 p-4 space-y-3 animate-slide-down" style={{ background:'rgba(255,255,255,0.05)', backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)' }}>
             <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Nuevo perfil UPAO</p>
             <input placeholder="Nombre (opcional)" value={profileForm.nombre}
               onChange={e => setProfileForm(f => ({ ...f, nombre: e.target.value }))}
-              className="w-full bg-white/5 border border-white/10 py-3 px-4 rounded-2xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
-            <div className="grid grid-cols-2 gap-3">
+              className="w-full bg-white/5 border border-white/10 py-2.5 px-4 rounded-xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <input placeholder="ID UPAO (ej: 000123456)" value={profileForm.usuario}
                 onChange={e => setProfileForm(f => ({ ...f, usuario: e.target.value }))}
-                className="bg-white/5 border border-white/10 py-3 px-4 rounded-2xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
+                className="bg-white/5 border border-white/10 py-2.5 px-4 rounded-xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
               <input type="password" placeholder="Contraseña (NIP)" value={profileForm.password}
                 onChange={e => setProfileForm(f => ({ ...f, password: e.target.value }))}
                 onKeyDown={e => e.key === 'Enter' && handleAddProfile()}
-                className="bg-white/5 border border-white/10 py-3 px-4 rounded-2xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
+                className="bg-white/5 border border-white/10 py-2.5 px-4 rounded-xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
             </div>
             <div className="flex gap-2">
               <button onClick={() => { setShowAddProfile(false); setProfileForm({ nombre: '', usuario: '', password: '' }) }}
-                className="flex-1 py-3 bg-white/5 rounded-2xl text-[10px] font-black text-white/30 hover:text-white/60 transition-all">
+                className="flex-1 py-2.5 bg-white/5 rounded-xl text-[10px] font-black text-white/30 hover:text-white/60 transition-all">
                 Cancelar
               </button>
               <button onClick={handleAddProfile}
                 disabled={!profileForm.usuario.trim() || !profileForm.password.trim()}
-                className="flex-1 py-3 bg-accent rounded-2xl text-[10px] font-black text-white shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-40">
+                className="flex-1 py-2.5 bg-white/90 rounded-xl text-[10px] font-black text-[#111] shadow-lg hover:brightness-95 active:scale-95 transition-all disabled:opacity-40">
                 Guardar y cargar notas
               </button>
             </div>
@@ -1652,12 +1659,13 @@ const App = () => {
         )}
 
         {upaoError && (
-          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-3">
-            <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
-            <p className="text-[11px] text-red-400 font-bold">{upaoError}</p>
+          <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3">
+            <AlertCircle size={15} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-red-400 font-bold leading-relaxed">{upaoError}</p>
           </div>
         )}
 
+        {/* ── Pantalla de carga ── */}
         {upaoLoading && (() => {
           const pct = Math.min(
             Math.max(
@@ -1669,71 +1677,50 @@ const App = () => {
           const secs = upaoElapsed % 60
           const timeStr = mins > 0 ? `${mins}:${String(secs).padStart(2,'0')}` : `${secs}s`
           return (
-          <div className="relative overflow-hidden rounded-[30px] border border-accent/20 bg-gradient-to-b from-[#1a1f2e] to-[#0d1117] p-5">
-            {/* glow de fondo */}
-            <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-32 bg-accent/8 blur-3xl rounded-full" />
-
-            {/* cabecera */}
+          <div className="relative overflow-hidden rounded-[28px] p-5" style={{ background:'rgba(255,255,255,0.05)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }}>
+            <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-32 bg-[#a855f7]/8 blur-3xl rounded-full" />
             <div className="relative flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-2xl bg-accent/15 flex items-center justify-center flex-shrink-0">
-                <GraduationCap size={18} className="text-accent" />
+              <div className="w-9 h-9 rounded-2xl bg-[#a855f7]/20 flex items-center justify-center flex-shrink-0">
+                <GraduationCap size={18} className="text-[#c084fc]" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-black text-white leading-tight">Cargando tus notas</p>
                 <p className="text-[10px] text-white/30 font-bold">UPAO · Campus Virtual</p>
               </div>
-              {/* contador de tiempo */}
               <div className="flex flex-col items-end flex-shrink-0">
-                <span className="text-[22px] font-black text-accent tabular-nums leading-none">{timeStr}</span>
+                <span className="text-[24px] font-black text-[#c084fc] tabular-nums leading-none">{timeStr}</span>
                 <span className="text-[8px] text-white/20 font-black uppercase tracking-widest">transcurridos</span>
               </div>
             </div>
-
-            {/* barra de progreso principal */}
             <div className="relative mb-4">
-              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500 ease-out"
-                  style={{
-                    width: `${pct}%`,
-                    background: 'linear-gradient(90deg, #6366f1, #3b82f6, #06b6d4)',
-                    boxShadow: '0 0 12px rgba(99,102,241,0.5)',
-                  }}
-                />
+              <div className="h-2.5 bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${pct}%`, background: 'linear-gradient(90deg,rgba(168,85,247,0.5),rgba(192,132,252,0.9),rgba(168,85,247,0.5))', boxShadow: '0 0 14px rgba(168,85,247,0.5)' }} />
               </div>
               <div className="flex justify-between mt-1.5">
-                <span className="text-[9px] text-white/30 font-black">{pct}%</span>
+                <span className="text-[9px] text-[#c084fc]/70 font-black">{pct}%</span>
                 <span className="text-[9px] text-white/20 font-bold">~{SCRAPE_EXPECTED_SECS}s total</span>
               </div>
             </div>
-
-            {/* pasos */}
-            <div className="relative space-y-1">
+            <div className="space-y-1">
               {SCRAPE_STEPS.map((step, i) => {
                 const done = i < upaoStep
                 const current = i === upaoStep
                 return (
                   <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-500 ${
-                    current ? 'bg-accent/10 border border-accent/20' :
+                    current ? 'bg-[#a855f7]/10 border border-[#a855f7]/25' :
                     done    ? 'bg-emerald-500/5 border border-transparent' :
                               'border border-transparent opacity-20'
                   }`}>
-                    <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-500 text-[10px] font-black ${
-                      done    ? 'bg-emerald-500/25 text-emerald-400' :
-                      current ? 'bg-accent/25' : 'bg-white/5'
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-black ${
+                      done ? 'bg-emerald-500/25 text-emerald-400' : current ? 'bg-[#a855f7]/30' : 'bg-white/5'
                     }`}>
-                      {done ? '✓' : current ? (
-                        <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                      ) : (
-                        <div className="w-1 h-1 rounded-full bg-white/20" />
-                      )}
+                      {done ? '✓' : current ? <div className="w-1.5 h-1.5 rounded-full bg-[#c084fc] animate-pulse" /> : <div className="w-1 h-1 rounded-full bg-white/20" />}
                     </div>
-                    <span className={`text-[10px] font-bold transition-all duration-500 ${
-                      done ? 'text-emerald-400' : current ? 'text-white' : 'text-white/25'
-                    }`}>
+                    <span className={`text-[11px] font-bold ${done ? 'text-emerald-400' : current ? 'text-white' : 'text-white/25'}`}>
                       {step.icon} {step.label}
                     </span>
-                    {current && <span className="ml-auto text-[8px] text-accent/60 font-black animate-pulse">en curso</span>}
+                    {current && <span className="ml-auto text-[8px] text-[#c084fc]/70 font-black animate-pulse">en curso</span>}
                     {done && <span className="ml-auto text-[8px] text-emerald-400/50 font-black">✓</span>}
                   </div>
                 )
@@ -1744,82 +1731,110 @@ const App = () => {
         })()}
 
         {!upaoLoading && notasUpao.cursos.length === 0 && (
-          <div className="p-10 bg-[#1a1f2e] rounded-[30px] border border-white/5 text-center">
-            <GraduationCap size={44} className="mx-auto text-white/10 mb-4" />
+          <div className="py-12 rounded-[28px] text-center px-6" style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)' }}>
+            <GraduationCap size={40} className="mx-auto text-white/10 mb-3" />
             <p className="text-[11px] text-white/40 font-bold uppercase tracking-widest">Sin datos aún</p>
-            <p className="text-[10px] text-white/20 mt-2">Presiona "Actualizar" para cargar tus notas</p>
+            <p className="text-[10px] text-white/20 mt-1.5">Presiona "Actualizar" para cargar tus notas</p>
           </div>
         )}
 
-        {/* ── Hint ── */}
         {notasUpao.cursos.length > 0 && (
-          <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-accent/5 border border-dashed border-accent/20 rounded-2xl">
-            <div className="w-2 h-2 rounded-full bg-accent/50 flex-shrink-0" />
-            <p className="text-[9px] text-accent/60 font-bold leading-relaxed">
-              Las celdas punteadas azules son editables — escribe una nota para simular tu promedio
-            </p>
-          </div>
+          <p className="text-[9px] text-accent/50 font-bold px-1">
+            Celdas azules punteadas = simulación de nota
+          </p>
         )}
 
-        {/* ── Cards ── */}
+        {/* ── Cards de cursos ── */}
         <div className="space-y-3">
           {(notasUpao.cursos || []).map((curso) => {
             const comps  = curso.componentes || []
             const info   = calcInfo(comps, curso.codigo)
             const isOpen = expandedCourse === curso.codigo
 
-            return (
-              <div key={curso.codigo} className="bg-[#141824] rounded-[28px] border border-white/5 overflow-hidden">
+            // Color del borde izquierdo según estado
+            const borderColor = info.acum === 0 ? 'rgba(255,255,255,0.06)'
+              : info.allGraded ? (info.passing ? '#34d399' : '#ef4444')
+              : info.impossible ? '#ef4444'
+              : info.passing ? '#34d399'
+              : 'rgba(255,255,255,0.18)'
+            // Color de la mini barra (neon violeta para en-progreso)
+            const barColor = info.acum === 0 ? 'rgba(255,255,255,0.05)'
+              : info.allGraded ? (info.passing ? '#34d399' : '#ef4444')
+              : info.impossible ? '#ef4444'
+              : info.passing ? '#34d399'
+              : 'rgba(167,139,250,0.75)'
 
-                {/* ── Card top (clickable) ── */}
-                <div className="p-5 pb-4 cursor-pointer hover:bg-white/[0.02] transition-colors"
+            return (
+              <div key={curso.codigo} className="rounded-[20px] overflow-hidden"
+                style={{ background: 'rgba(255,255,255,0.045)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.09)', borderLeftWidth: '4px', borderLeftColor: borderColor, boxShadow: `0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.07)` }}>
+
+                {/* ── Cabecera de la card ── */}
+                <div className="p-4 cursor-pointer active:bg-white/[0.03] hover:bg-white/[0.02] transition-colors select-none"
                   onClick={() => setExpandedCourse(isOpen ? null : curso.codigo)}>
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-accent bg-accent/10 px-2.5 py-1 rounded-lg">
+                      {/* Código + badges */}
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-white/50 bg-white/[0.06] px-2 py-0.5 rounded-lg flex-shrink-0">
                           {curso.codigo}
                         </span>
                         {!curso.cal_disponible && (
-                          <span className="text-[8px] font-black uppercase text-white/25 bg-white/5 px-2 py-1 rounded-lg">Sin notas</span>
+                          <span className="text-[8px] font-black text-white/25 bg-white/5 px-1.5 py-0.5 rounded-md">Sin notas</span>
                         )}
                         {info.allGraded && (
-                          <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${info.passing ? 'text-[#10b981] bg-[#10b981]/10' : 'text-[#ef4444] bg-[#ef4444]/10'}`}>
-                            {info.passing ? '😊 Aprobado' : '😔 Desaprobado'}
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${info.passing ? 'text-[#10b981] bg-[#10b981]/10' : 'text-[#ef4444] bg-[#ef4444]/10'}`}>
+                            {info.passing ? '✓ Aprobado' : '✗ Desaprobado'}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm font-bold text-white/90 leading-snug">{curso.nombre}</p>
-                      <p className="text-[9px] text-white/25 mt-0.5">{curso.horas} créditos</p>
+                      {/* Nombre del curso */}
+                      <p className="text-[13px] sm:text-[14px] font-black text-white/90 leading-snug line-clamp-2 tracking-tight">
+                        {curso.nombre && curso.nombre !== curso.codigo ? curso.nombre : 'Sin nombre disponible'}
+                      </p>
+                      <p className="text-[8px] text-white/20 mt-0.5 font-medium">{curso.horas} créditos</p>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
-                      {info.acum > 0 && !info.allGraded && (
-                        <span className="text-base">{info.passing ? '😊' : info.impossible ? '😔' : ''}</span>
-                      )}
-                      <span className={`text-2xl font-black tabular-nums ${info.acum > 0 ? gradeColor(info.acum) : 'text-white/15'}`}>
-                        {info.acum > 0 ? info.acum.toFixed(2) : '—'}
-                      </span>
-                      <ChevronDown size={18} className={`text-white/25 transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+
+                    {/* Nota acumulada + flecha */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0 pl-2">
+                      <div className="text-right">
+                        {info.acum > 0 && !info.allGraded && (
+                          <p className="text-[7px] text-white/25 font-black uppercase tracking-widest mb-0.5">PROMEDIO</p>
+                        )}
+                        <span className={`text-[28px] font-black tabular-nums leading-none ${info.acum > 0 ? gradeColor(info.acum) : 'text-white/10'}`}>
+                          {info.acum > 0 ? info.acum.toFixed(1) : '—'}
+                        </span>
+                      </div>
+                      <ChevronDown size={14} className={`text-white/20 transition-transform duration-300 ml-0.5 ${isOpen ? 'rotate-180' : ''}`} />
                     </div>
                   </div>
+
+                  {/* Mini barra de progreso de nota */}
+                  {info.acum > 0 && (
+                    <div className="mt-3 h-[3px] bg-white/[0.07] rounded-full overflow-visible">
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${Math.min(info.acum / 20 * 100, 100)}%`,
+                          backgroundColor: barColor,
+                          opacity: 0.9,
+                          boxShadow: `0 0 8px ${barColor}`,
+                        }} />
+                    </div>
+                  )}
                 </div>
 
-                {/* ── Grade cells + sim inputs ── */}
+                {/* ── Celdas de notas ── */}
                 {curso.cal_disponible && (
-                  <div className="px-5 pb-4" onClick={e => e.stopPropagation()}>
-                    <div className="flex gap-2">
+                  <div className="px-4 pb-4" onClick={e => e.stopPropagation()}>
+                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                       {PARTS.map(([kw, w]) => {
                         const { val, real } = effScore(comps, kw, curso.codigo)
                         const simKey = `${curso.codigo}-${kw}`
                         const isEmpty = !real
-
                         return (
-                          <div key={kw} className={`flex-1 rounded-xl p-2.5 text-center transition-all ${
-                            isEmpty
-                              ? 'border border-dashed border-accent/30 bg-accent/5'
-                              : 'bg-white/5'
+                          <div key={kw} className={`rounded-xl p-2 text-center transition-all ${
+                            isEmpty ? 'border border-dashed border-accent/25 bg-accent/5' : 'bg-white/[0.04]'
                           }`}>
-                            <p className="text-[7px] font-black uppercase tracking-widest text-white/30 mb-1.5">{kw}</p>
+                            <p className="text-[8px] font-black uppercase tracking-widest text-white/30 mb-1">{kw}</p>
                             {isEmpty ? (
                               <input
                                 type="number" min="1" max="20" step="0.1"
@@ -1835,73 +1850,58 @@ const App = () => {
                                 onBlur={e => {
                                   const n = parseFloat(e.target.value)
                                   if (isNaN(n) || e.target.value === '') { setSimGrades(p => ({ ...p, [simKey]: '' })); return }
-                                  const clamped = Math.min(20, Math.max(1, Math.round(n * 10) / 10))
-                                  setSimGrades(p => ({ ...p, [simKey]: String(clamped) }))
+                                  setSimGrades(p => ({ ...p, [simKey]: String(Math.min(20, Math.max(1, Math.round(n * 10) / 10))) }))
                                 }}
-                                className="w-full bg-transparent text-center text-[15px] font-black text-accent outline-none placeholder-white/20
+                                className="w-full bg-transparent text-center text-[14px] sm:text-[15px] font-black text-accent outline-none placeholder-white/20
                                   [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             ) : (
-                              <p className={`text-[15px] font-black leading-none ${gradeColor(val)}`}>{val}</p>
+                              <p className={`text-[14px] sm:text-[15px] font-black leading-none ${gradeColor(val)}`}>{val}</p>
                             )}
-                            <p className="text-[7px] text-white/20 mt-1.5">{w}%</p>
+                            <p className="text-[7px] text-white/15 mt-1">{w}%</p>
                           </div>
                         )
                       })}
                     </div>
 
-                    {/* ── Recommendation bar ── */}
+                    {/* ── Barra de recomendación ── */}
                     {info.missingW > 0 && (() => {
                       const hasSim = info.missing.some(kw => simGrades[`${curso.codigo}-${kw}`])
-                      const projLabel = hasSim
-                        ? `Proyectado: ${info.acum.toFixed(2)}`
-                        : null
-
+                      const projLabel = hasSim ? `Proyección: ${info.acum.toFixed(2)}` : null
                       return (
-                        <div className={`mt-2.5 rounded-xl px-4 py-3 flex items-center justify-between gap-3 ${
-                          info.impossible   ? 'bg-red-500/10 border border-red-500/20' :
-                          info.passing      ? 'bg-[#10b981]/8 border border-[#10b981]/20' :
-                                             'bg-white/[0.03] border border-white/5'
+                        <div className={`mt-2 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 ${
+                          info.impossible ? 'bg-red-500/10 border border-red-500/20' :
+                          info.passing    ? 'bg-[#10b981]/8 border border-[#10b981]/20' :
+                                           'bg-white/[0.03] border border-white/5'
                         }`}>
                           <div className="flex-1 min-w-0">
                             {info.impossible ? (
                               <p className="text-[11px] font-black text-red-400">😔 Ya no es posible aprobar</p>
                             ) : info.passing ? (
-                              <>
-                                <p className="text-[11px] font-black text-[#10b981]">😊 ¡Con lo que tienes ya apruebas!</p>
-                                {projLabel && <p className={`text-sm font-black mt-0.5 ${gradeColor(info.acum)}`}>{projLabel}</p>}
-                              </>
+                              <div>
+                                <p className="text-[11px] font-black text-[#10b981]">😊 Ya apruebas!</p>
+                                {projLabel && <p className={`text-[10px] font-black mt-0.5 ${gradeColor(info.acum)}`}>{projLabel}</p>}
+                              </div>
                             ) : (
-                              <>
-                                <p className="text-[8px] font-black uppercase text-white/25 mb-1">
-                                  Lo que necesitas en {info.missing.join(' y ')}:
-                                </p>
+                              <div>
+                                <p className="text-[8px] font-black uppercase text-white/25 mb-0.5">Necesitas en {info.missing.join(' y ')}:</p>
                                 <div className="flex items-baseline gap-2 flex-wrap">
-                                  <span className={`text-xl font-black tabular-nums ${
+                                  <span className={`text-[18px] font-black tabular-nums ${
                                     info.minEach > 18 ? 'text-[#ef4444]' :
-                                    info.minEach > 13 ? 'text-orange-400' :
-                                    info.minEach > 10 ? 'text-yellow-400' : 'text-[#10b981]'
+                                    info.minEach > 13 ? 'text-[#fbbf24]' :
+                                    info.minEach > 10 ? 'text-white/50' : 'text-[#34d399]'
                                   }`}>
-                                    {info.minEach > 20 ? '—' : info.minEach.toFixed(2)}
+                                    {info.minEach > 20 ? '—' : info.minEach.toFixed(1)}
                                   </span>
-                                  {info.minEach >= 10.5 && info.minEach < 11.5 && (
-                                    <span className="text-[9px] font-black text-white/35 bg-white/5 px-2 py-0.5 rounded-lg">aprox. 11</span>
-                                  )}
-                                  {info.minEach > 20 && (
-                                    <span className="text-[10px] font-black text-red-400">😔 imposible</span>
-                                  )}
-                                  {projLabel && (
-                                    <span className={`text-[10px] font-black ml-2 ${gradeColor(info.acum)}`}>{projLabel}</span>
-                                  )}
+                                  {info.minEach > 20 && <span className="text-[10px] font-black text-red-400">imposible</span>}
+                                  {projLabel && <span className={`text-[9px] font-black ${gradeColor(info.acum)}`}>{projLabel}</span>}
                                 </div>
-                              </>
+                              </div>
                             )}
                           </div>
                           <div className="text-right flex-shrink-0 pl-2 border-l border-white/5">
                             <p className="text-[7px] font-black uppercase text-white/20">Acum.</p>
-                            <p className={`text-base font-black tabular-nums ${gradeColor(info.acum)}`}>
-                              {info.acum.toFixed(2)}
-                            </p>
+                            <p className={`text-[15px] font-black tabular-nums ${gradeColor(info.acum)}`}>{info.acum.toFixed(2)}</p>
                           </div>
                         </div>
                       )
@@ -1909,33 +1909,35 @@ const App = () => {
                   </div>
                 )}
 
-                {/* ── Expanded component detail ── */}
+                {/* ── Detalle de componentes (expandido) ── */}
                 {isOpen && (
-                  <div className="border-t border-white/5 px-5 pb-5 pt-4 space-y-1.5">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-3">
+                  <div className="border-t border-white/5 px-4 pb-4 pt-3">
+                    <p className="text-[8px] font-black uppercase tracking-widest text-white/20 mb-2.5">
                       Detalle de componentes
                     </p>
                     {comps.length === 0 && (
-                      <p className="text-[10px] text-white/20 italic text-center py-3">Sin componentes disponibles</p>
+                      <p className="text-[10px] text-white/20 italic text-center py-4">Sin componentes disponibles</p>
                     )}
-                    {comps.map((comp, i) => (
-                      <div key={i} className={`flex items-center justify-between py-2.5 px-3 rounded-xl ${
-                        isSubComponent(comp) ? 'ml-5 border-l-2 border-accent/15 bg-white/[0.02]' : 'bg-white/[0.04]'
-                      }`}>
-                        <div className="flex-1 min-w-0 pr-3">
-                          <p className={`text-[10px] font-bold truncate ${isSubComponent(comp) ? 'text-white/45' : 'text-white/80'}`}>
-                            {comp.name?.replace(/^\d+_/, '').replace(/-/g, ' ') || '—'}
-                          </p>
-                          <div className="flex gap-3 mt-0.5 flex-wrap">
-                            {comp.weight && <span className="text-[8px] text-white/20">Peso: {comp.weight}%</span>}
-                            {comp.mustPass === 'Sí' && <span className="text-[8px] text-yellow-400/50">Obligatorio</span>}
+                    <div className="space-y-1">
+                      {comps.map((comp, i) => (
+                        <div key={i} className={`flex items-center justify-between py-2 px-2.5 rounded-lg ${
+                          isSubComponent(comp) ? 'ml-4 border-l-2 border-accent/15 bg-white/[0.015]' : 'bg-white/[0.035]'
+                        }`}>
+                          <div className="flex-1 min-w-0 pr-2">
+                            <p className={`text-[10px] font-bold leading-snug ${isSubComponent(comp) ? 'text-white/40' : 'text-white/75'}`}>
+                              {comp.name?.replace(/^\d+_/, '').replace(/-/g, ' ') || '—'}
+                            </p>
+                            <div className="flex gap-2 mt-0.5">
+                              {comp.weight && <span className="text-[7px] text-white/20">Peso: {comp.weight}%</span>}
+                              {comp.mustPass === 'Sí' && <span className="text-[7px] text-yellow-400/50">Obligatorio</span>}
+                            </div>
                           </div>
+                          <span className={`text-[13px] font-black flex-shrink-0 tabular-nums ${gradeColor(comp.score)}`}>
+                            {comp.score || '—'}
+                          </span>
                         </div>
-                        <span className={`text-sm font-black flex-shrink-0 tabular-nums ${gradeColor(comp.score)}`}>
-                          {comp.score || '—'}
-                        </span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -1949,9 +1951,55 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#0c0e14] text-white font-sans selection:bg-accent/40 selection:text-white overflow-x-hidden">
+
+      {/* ── Overlay de carga inicial ── */}
+      {!appReady && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center animate-fade-in"
+          style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', background: 'rgba(12,14,20,0.55)' }}>
+          <div className="flex flex-col items-center gap-5 px-10 py-8 rounded-[32px]"
+            style={{ background: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 32px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12)' }}>
+
+            {/* Spinner doble aro */}
+            <div className="relative w-[52px] h-[52px]">
+              <div className="absolute inset-0 rounded-full" style={{ border: '2px solid rgba(255,255,255,0.07)' }} />
+              <div className="absolute inset-0 rounded-full animate-spin"
+                style={{ border: '2px solid transparent', borderTopColor: 'rgba(255,255,255,0.8)', animationDuration: '0.85s' }} />
+              <div className="absolute inset-[6px] rounded-full animate-spin"
+                style={{ border: '1.5px solid transparent', borderTopColor: 'rgba(255,255,255,0.22)', animationDuration: '1.4s', animationDirection: 'reverse' }} />
+            </div>
+
+            {/* Texto */}
+            <div className="text-center">
+              <p className="text-[14px] font-black text-white/85 tracking-tight">Sistema de Cuentas</p>
+              <p className="text-[10px] text-white/35 font-medium mt-1 tracking-wide">Cargando tus datos...</p>
+            </div>
+
+            {/* Tres puntos rebotando */}
+            <div className="flex items-center gap-2">
+              {[0, 160, 320].map((delay, i) => (
+                <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/35 animate-bounce"
+                  style={{ animationDelay: `${delay}ms`, animationDuration: '1s' }} />
+              ))}
+            </div>
+
+          </div>
+        </div>
+      )}
+      {/* ── Pill flotante de sincronización (conexión lenta) ── */}
+      {appReady && isSyncing && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[400] animate-fade-in pointer-events-none">
+          <div className="flex items-center gap-2.5 px-4 py-2 rounded-full"
+            style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div className="w-3 h-3 rounded-full animate-spin flex-shrink-0"
+              style={{ border: '1.5px solid rgba(255,255,255,0.15)', borderTopColor: 'rgba(255,255,255,0.7)' }} />
+            <span className="text-[10px] font-black text-white/55 uppercase tracking-widest">Sincronizando</span>
+          </div>
+        </div>
+      )}
+
       <header className="glass sticky top-0 z-[60] px-6 py-7 flex items-center justify-between border-b border-white/5 backdrop-blur-3xl shadow-2xl">
         <div className="flex items-center gap-4">
-            <div className="w-13 h-13 rounded-2xl bg-accent text-white flex items-center justify-center shadow-lg shadow-accent/20"><Wallet size={28} /></div>
+            <div className="w-13 h-13 rounded-2xl bg-white/[0.08] text-white flex items-center justify-center shadow-lg border border-white/15"><Wallet size={28} /></div>
             <div>
               <h1 className="font-black text-xl tracking-tighter leading-none text-white">SISTEMA DE CUENTAS</h1>
               <p className="text-[9px] font-black text-[#aab3cc] uppercase tracking-[0.4em] mt-2">Auditoría Financiera</p>
@@ -1991,9 +2039,9 @@ const App = () => {
       </main>
 
       <div className="fixed bottom-8 left-0 right-0 z-[60] px-4 sm:px-0 pointer-events-none">
-        <nav className="max-w-[400px] mx-auto bg-[#1a1f2e]/90 backdrop-blur-3xl p-3 rounded-[50px] flex justify-between items-center shadow-[0_40px_80px_rgba(0,0,0,0.8)] border border-white/10 pointer-events-auto">
+        <nav className="max-w-[400px] mx-auto p-3 rounded-[50px] flex justify-between items-center pointer-events-auto" style={{ background:'rgba(255,255,255,0.07)', backdropFilter:'blur(32px) saturate(180%)', WebkitBackdropFilter:'blur(32px) saturate(180%)', border:'1px solid rgba(255,255,255,0.12)', boxShadow:'0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)' }}>
           <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center py-3.5 rounded-[40px] transition-all ${activeTab === 'home' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><Home size={22} /><span className="text-[8px] font-black uppercase mt-1">Métricas</span></button>
-          <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario:'', fecha: '', cuentaId: '', grupoId: ''}); setIsTxModal(true) }} className="w-14 h-14 rounded-full bg-accent flex items-center justify-center text-white mx-2 shadow-2xl active:scale-95 transition-transform flex-shrink-0"><PlusCircle size={34} /></button>
+          <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario:'', fecha: '', cuentaId: '', grupoId: ''}); setIsTxModal(true) }} className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center text-[#111] mx-2 shadow-2xl active:scale-95 transition-transform flex-shrink-0"><PlusCircle size={34} /></button>
           <button onClick={() => setActiveTab('wallet')} className={`flex-1 flex flex-col items-center py-3.5 rounded-[40px] transition-all ${activeTab === 'wallet' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><Wallet size={22} /><span className="text-[8px] font-black uppercase mt-1">Billeteras</span></button>
           <button onClick={() => setActiveTab('notas')} className={`flex-1 flex flex-col items-center py-3.5 rounded-[40px] transition-all ${activeTab === 'notas' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><GraduationCap size={22} /><span className="text-[8px] font-black uppercase mt-1">Notas</span></button>
         </nav>
@@ -2001,20 +2049,60 @@ const App = () => {
 
       {/* ═══════════ MODALS ═══════════ */}
 
-      {isAccountModal && <Modal title={accountForm.id ? 'Ajustes de Billetera' : 'Nueva Billetera'} onClose={()=>setIsAccountModal(false)}>
-          <div className="space-y-8">
-              <input autoFocus placeholder="Nombre de la cuenta" className="w-full bg-white/5 border border-white/10 py-6 px-6 rounded-3xl outline-none focus:border-accent transition-all text-white font-bold text-lg" value={accountForm.nombre} onChange={e=>setAccountForm({...accountForm, nombre: e.target.value})} />
-              <div className="px-2">
-                <UnifiedColorPalette 
-                  selectedColor={accountForm.color} 
-                  onSelect={(c) => setAccountForm({...accountForm, color: c})} 
-                  savedColors={savedColors} 
-                  onAddColor={handleAddColor} 
-                  onRemoveColor={handleRemoveColor} 
-                  sizeClass="w-12 h-12"
-                />
+      {isAccountModal && <Modal title={accountForm.id ? 'Editar Cuenta' : 'Nueva Cuenta'} onClose={()=>setIsAccountModal(false)}>
+          <div className="space-y-5">
+
+            {/* ── Preview animada ── */}
+            <div className="relative flex flex-col items-center py-7 rounded-[24px] overflow-hidden transition-all duration-500"
+              style={{ background: `linear-gradient(135deg, ${accountForm.color}18 0%, ${accountForm.color}08 100%)`, border: `1px solid ${accountForm.color}35` }}>
+              {/* Glow de fondo */}
+              <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 blur-3xl rounded-full transition-all duration-500"
+                style={{ background: accountForm.color, opacity: 0.18 }} />
+              {/* Ícono con color dinámico */}
+              <div className="relative w-[60px] h-[60px] rounded-[20px] flex items-center justify-center mb-3 transition-all duration-500 animate-fade-in"
+                style={{ background: `${accountForm.color}22`, border: `1.5px solid ${accountForm.color}55`, boxShadow: `0 0 28px ${accountForm.color}35, inset 0 1px 0 rgba(255,255,255,0.12)` }}>
+                <Wallet size={26} style={{ color: accountForm.color, filter: `drop-shadow(0 0 6px ${accountForm.color}90)` }} />
               </div>
-              <button onClick={handleSaveAccount} className="w-full bg-accent py-6 rounded-3xl text-white font-black uppercase tracking-widest text-[11px] shadow-2xl hover:brightness-110 active:scale-95 transition-all">Sincronizar Datos</button>
+              {/* Nombre en vivo */}
+              <p className={`text-[16px] font-black tracking-tight transition-all duration-200 px-4 text-center line-clamp-1 ${accountForm.nombre ? 'text-white/90' : 'text-white/20'}`}>
+                {accountForm.nombre || 'Nombre de la cuenta'}
+              </p>
+              <p className="text-[10px] font-medium mt-1 transition-all duration-500" style={{ color: `${accountForm.color}99` }}>
+                S/ 0.00 · Nueva cuenta
+              </p>
+            </div>
+
+            {/* ── Input nombre ── */}
+            <input autoFocus placeholder="Nombre de la cuenta"
+              className="w-full bg-white/[0.05] border border-white/10 py-4 px-5 rounded-2xl outline-none transition-all text-white font-bold text-[15px] placeholder-white/20"
+              style={{ '--tw-ring-color': accountForm.color }}
+              onFocus={e => e.target.style.borderColor = `${accountForm.color}60`}
+              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+              value={accountForm.nombre}
+              onChange={e=>setAccountForm({...accountForm, nombre: e.target.value})}
+              onKeyDown={e => e.key === 'Enter' && accountForm.nombre.trim() && handleSaveAccount()} />
+
+            {/* ── Paleta de color ── */}
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/25 mb-3 pl-1">Color de la cuenta</p>
+              <UnifiedColorPalette
+                selectedColor={accountForm.color}
+                onSelect={(c) => setAccountForm({...accountForm, color: c})}
+                savedColors={savedColors}
+                onAddColor={handleAddColor}
+                onRemoveColor={handleRemoveColor}
+                sizeClass="w-10 h-10"
+              />
+            </div>
+
+            {/* ── Botón CTA con el color de la cuenta ── */}
+            <button onClick={handleSaveAccount}
+              disabled={!accountForm.nombre.trim()}
+              className="w-full py-5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: `linear-gradient(135deg, ${accountForm.color}, ${accountForm.color}cc)`, color: '#fff', boxShadow: `0 8px 32px ${accountForm.color}45` }}>
+              {accountForm.id ? 'Guardar Cambios' : '+ Crear Cuenta'}
+            </button>
+
           </div>
       </Modal>}
 
@@ -2063,8 +2151,8 @@ const App = () => {
               <textarea placeholder="Comentario opcional..." className="w-full bg-white/5 border border-white/10 p-6 rounded-3xl outline-none focus:border-accent transition-all text-white font-medium text-sm h-28 resize-none" value={txForm.comentario} onChange={e=>setTxForm({...txForm, comentario: e.target.value})} />
               
               {!selectedAccountId && txMode === 'create' && <select className="w-full bg-white/5 border border-white/10 py-6 px-7 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-accent" value={txForm.cuentaId} onChange={e=>setTxForm({...txForm, cuentaId: e.target.value, grupoId: ''})}>
-                  <option value="" className="bg-[#1a1f2e]">--- SELECCIONAR BILLETERA ---</option>
-                  {cuentas.map(b => <option key={b.id} value={b.id} className="bg-[#1a1f2e]">{b.nombre}</option>)}
+                  <option value="" className="bg-white/[0.05]">--- SELECCIONAR BILLETERA ---</option>
+                  {cuentas.map(b => <option key={b.id} value={b.id} className="bg-white/[0.05]">{b.nombre}</option>)}
               </select>}
               
               <button onClick={handleSaveTx} className={`w-full py-7 font-black uppercase tracking-[0.3em] text-[10px] rounded-[35px] text-white shadow-2xl transition-all active:scale-95 ${txForm.tipo === 'ingreso' ? 'bg-[#10b981]' : 'bg-[#ef4444]'}`}>{txMode === 'create' ? 'Registrar en App' : 'Actualizar Movimiento'}</button>
@@ -2075,7 +2163,7 @@ const App = () => {
           <div className="space-y-7">
               <input autoFocus placeholder="Nombre (Yape, Bin, Cash...)" className="w-full bg-white/5 border border-white/10 py-6 px-6 rounded-3xl outline-none focus:border-accent transition-all text-white font-black uppercase text-xs tracking-widest" value={manualForm.nombre} onChange={e=>setManualForm({...manualForm, nombre: e.target.value})} />
               <div className="relative border-b-2 border-accent shadow-lg"><span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/30 font-black">{CURRENCY}</span><input type="number" placeholder="0.00" className="bg-transparent w-full pl-14 py-8 font-black text-4xl outline-none text-white text-center" value={manualForm.monto} onChange={e=>setManualForm({...manualForm, monto: e.target.value})} /></div>
-              <button onClick={handleSaveManual} className="w-full bg-accent py-7 rounded-[35px] text-white font-black uppercase tracking-[0.4em] text-[10px] shadow-2xl active:scale-95 transition-all">Guardar Saldo Final</button>
+              <button onClick={handleSaveManual} className="w-full bg-white/90 py-7 rounded-[35px] text-[#111] font-black uppercase tracking-[0.4em] text-[10px] shadow-2xl active:scale-95 transition-all">Guardar Saldo Final</button>
           </div>
       </Modal>}
 
@@ -2093,26 +2181,26 @@ const App = () => {
           </div>
           <div className="flex gap-4 mt-8">
             <button onClick={()=>setIsNoteModal(false)} className="flex-1 bg-white/5 py-6 rounded-3xl uppercase text-[10px] font-black text-white/40 hover:bg-white/10 transition-all shadow-inner">Cancelar</button>
-            <button onClick={handleSaveNote} className="flex-1 bg-accent py-6 rounded-3xl uppercase text-[10px] font-black text-white shadow-xl active:scale-95 transition-all">Guardar</button>
+            <button onClick={handleSaveNote} className="flex-1 bg-white/90 py-6 rounded-3xl uppercase text-[10px] font-black text-[#111] shadow-xl active:scale-95 transition-all">Guardar</button>
           </div>
       </Modal>}
 
       {isExportModal && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#1a1f2e] w-full max-w-md rounded-t-[40px] sm:rounded-[40px] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.5)] p-8">
+          <div className="bg-white/[0.05] w-full max-w-md rounded-t-[40px] sm:rounded-[40px] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.5)] p-8">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black text-white">Exportar Excel</h3>
               <button onClick={()=>setShowExportModal(false)} className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all"><X size={24} className="text-white"/></button>
             </div>
             <p className="text-sm text-white/60 mb-6">Selecciona qué cuenta u hoja de reporte deseas exportar a Excel.</p>
             <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-2xl mb-6 text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-accent" value={exportAccountId} onChange={e=>setExportAccountId(e.target.value)}>
-                <option value="all" className="bg-[#1a1f2e]"> TODAS LAS BILLETERAS </option>
-                {cuentas.map(b => <option key={b.id} value={b.id} className="bg-[#1a1f2e]">{b.nombre}</option>)}
+                <option value="all" className="bg-white/[0.05]"> TODAS LAS BILLETERAS </option>
+                {cuentas.map(b => <option key={b.id} value={b.id} className="bg-white/[0.05]">{b.nombre}</option>)}
             </select>
             <div className="space-y-3">
-              <button onClick={()=>{exportAllToExcel(exportAccountId === 'all' ? null : exportAccountId); setShowExportModal(false)}} className="w-full py-5 px-6 bg-accent hover:brightness-110 rounded-2xl flex items-center justify-center gap-3 transition-all">
-                <Download size={20} className="text-white" />
-                <span className="font-bold text-white">Descargar Excel</span>
+              <button onClick={()=>{exportAllToExcel(exportAccountId === 'all' ? null : exportAccountId); setShowExportModal(false)}} className="w-full py-5 px-6 bg-white/90 hover:brightness-95 rounded-2xl flex items-center justify-center gap-3 transition-all">
+                <Download size={20} className="text-[#111]" />
+                <span className="font-bold text-[#111]">Descargar Excel</span>
               </button>
             </div>
           </div>
@@ -2121,12 +2209,12 @@ const App = () => {
 
       {isPagoModal && <Modal title={pagoMode === 'create' ? 'Nuevo Pago Mensual' : 'Editar Pago Mensual'} onClose={() => setIsPagoModal(false)}>
           <div className="space-y-6">
-              <input autoFocus placeholder="Nombre del pago (Ej: Luz, Agua, Internet...)" className="w-full bg-white/5 border border-white/10 py-6 px-6 rounded-3xl outline-none focus:border-purple-500 transition-all text-white font-bold" value={pagoForm.nombre} onChange={e => setPagoForm({...pagoForm, nombre: e.target.value})} />
+              <input autoFocus placeholder="Nombre del pago (Ej: Luz, Agua, Internet...)" className="w-full bg-white/5 border border-white/10 py-6 px-6 rounded-3xl outline-none focus:border-accent transition-all text-white font-bold" value={pagoForm.nombre} onChange={e => setPagoForm({...pagoForm, nombre: e.target.value})} />
               <div className="grid grid-cols-2 gap-4">
-                  <div className="relative"><span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/30 font-black">{CURRENCY}</span><input type="number" placeholder="0.00" className="w-full bg-white/5 border border-white/10 pl-14 py-6 rounded-3xl font-black text-2xl outline-none text-white focus:border-purple-500" value={pagoForm.monto} onChange={e => setPagoForm({...pagoForm, monto: e.target.value})} /></div>
-                  <div className="relative"><span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/30 text-[10px] font-black uppercase">Día</span><input type="number" min="1" max="31" placeholder="15" className="w-full bg-white/5 border border-white/10 pl-14 py-6 rounded-3xl font-black text-2xl outline-none text-white focus:border-purple-500 text-center" value={pagoForm.diaPago} onChange={e => setPagoForm({...pagoForm, diaPago: e.target.value})} /></div>
+                  <div className="relative"><span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/30 font-black">{CURRENCY}</span><input type="number" placeholder="0.00" className="w-full bg-white/5 border border-white/10 pl-14 py-6 rounded-3xl font-black text-2xl outline-none text-white focus:border-accent" value={pagoForm.monto} onChange={e => setPagoForm({...pagoForm, monto: e.target.value})} /></div>
+                  <div className="relative"><span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/30 text-[10px] font-black uppercase">Día</span><input type="number" min="1" max="31" placeholder="15" className="w-full bg-white/5 border border-white/10 pl-14 py-6 rounded-3xl font-black text-2xl outline-none text-white focus:border-accent text-center" value={pagoForm.diaPago} onChange={e => setPagoForm({...pagoForm, diaPago: e.target.value})} /></div>
               </div>
-              <textarea placeholder="Comentario opcional..." className="w-full bg-white/5 border border-white/10 p-6 rounded-3xl outline-none focus:border-purple-500 transition-all text-white font-medium text-sm h-24 resize-none" value={pagoForm.comentario} onChange={e => setPagoForm({...pagoForm, comentario: e.target.value})} />
+              <textarea placeholder="Comentario opcional..." className="w-full bg-white/5 border border-white/10 p-6 rounded-3xl outline-none focus:border-accent transition-all text-white font-medium text-sm h-24 resize-none" value={pagoForm.comentario} onChange={e => setPagoForm({...pagoForm, comentario: e.target.value})} />
               
               {/* Categoría */}
               {(() => {
@@ -2154,20 +2242,20 @@ const App = () => {
               })()}
 
               {pagoMode === 'edit' && (
-                <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-purple-500" value={pagoForm.cuentaId} onChange={e => setPagoForm({...pagoForm, cuentaId: e.target.value, grupoId: ''})}>
-                    <option value="" className="bg-[#1a1f2e]">--- BILLETERA ---</option>
-                    {cuentas.map(b => <option key={b.id} value={b.id} className="bg-[#1a1f2e]">{b.nombre}</option>)}
+                <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-accent" value={pagoForm.cuentaId} onChange={e => setPagoForm({...pagoForm, cuentaId: e.target.value, grupoId: ''})}>
+                    <option value="" className="bg-white/[0.05]">--- BILLETERA ---</option>
+                    {cuentas.map(b => <option key={b.id} value={b.id} className="bg-white/[0.05]">{b.nombre}</option>)}
                 </select>
               )}
 
               {!selectedAccountId && pagoMode === 'create' && (
-                <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-purple-500" value={pagoForm.cuentaId} onChange={e => setPagoForm({...pagoForm, cuentaId: e.target.value, grupoId: ''})}>
-                    <option value="" className="bg-[#1a1f2e]">--- SELECCIONAR BILLETERA ---</option>
-                    {cuentas.map(b => <option key={b.id} value={b.id} className="bg-[#1a1f2e]">{b.nombre}</option>)}
+                <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-accent" value={pagoForm.cuentaId} onChange={e => setPagoForm({...pagoForm, cuentaId: e.target.value, grupoId: ''})}>
+                    <option value="" className="bg-white/[0.05]">--- SELECCIONAR BILLETERA ---</option>
+                    {cuentas.map(b => <option key={b.id} value={b.id} className="bg-white/[0.05]">{b.nombre}</option>)}
                 </select>
               )}
               
-              <button onClick={handleSavePago} className="w-full py-7 bg-purple-600 font-black uppercase tracking-[0.3em] text-[10px] rounded-[35px] text-white shadow-2xl transition-all active:scale-95 hover:brightness-110">{pagoMode === 'create' ? 'Crear Pago Mensual' : 'Guardar Cambios'}</button>
+              <button onClick={handleSavePago} className="w-full py-7 bg-white/85 font-black uppercase tracking-[0.3em] text-[10px] rounded-[35px] text-[#111] shadow-2xl transition-all active:scale-95 hover:brightness-95">{pagoMode === 'create' ? 'Crear Pago Mensual' : 'Guardar Cambios'}</button>
           </div>
       </Modal>}
 

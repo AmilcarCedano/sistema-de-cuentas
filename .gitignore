@@ -9,5 +9,10 @@ docs/DOKPLOY_GUIDE.md
 scripts/deploy_vps.py
 scripts/verificar_vps.py
 
+# Scripts de debug / desarrollo local (pueden contener credenciales)
+server/scrape_debug.ts
+server/check_db.ts
+scraper/scrape_page_debug.py
+
 # Dumps de base de datos y reportes
 db/
