@@ -105,7 +105,7 @@ async def scrape_grades(user: str = None, pwd: str = None):
 
         # 1. SSO login via Experience → upaosso
         await page.goto("https://experience.elluciancloud.com/upao/",
-                        wait_until="domcontentloaded", timeout=40000)
+                        wait_until="domcontentloaded", timeout=15000)
         if "upaosso.upao.edu.pe" not in page.url:
             await page.wait_for_url("*upaosso.upao.edu.pe*", timeout=20000)
 

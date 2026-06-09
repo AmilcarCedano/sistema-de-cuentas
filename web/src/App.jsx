@@ -453,7 +453,7 @@ const App = () => {
         setUpaoError(err.error || 'Error al actualizar notas')
       }
     } catch (e) {
-      setUpaoError('No se pudo conectar al servidor')
+      setUpaoError('Sin conexión al servidor. Verifica tu internet e intenta de nuevo.')
     } finally {
       setSimGrades({})
       setUpaoLoading(false)
@@ -1661,7 +1661,14 @@ const App = () => {
         {upaoError && (
           <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3">
             <AlertCircle size={15} className="text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] text-red-400 font-bold leading-relaxed">{upaoError}</p>
+            <div>
+              <p className="text-[11px] text-red-400 font-bold leading-relaxed">{upaoError}</p>
+              {upaoError.includes('UPAO') && (
+                <p className="text-[10px] text-white/35 mt-1 leading-relaxed">
+                  💡 Usa la app desde tu celular con datos o WiFi en Perú para actualizar las notas.
+                </p>
+              )}
+            </div>
           </div>
         )}
 

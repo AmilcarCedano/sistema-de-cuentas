@@ -736,8 +736,8 @@ app.post('/api/notas-upao/refresh', async (req, res) => {
     const outcome = await new Promise<{ ok: boolean; cursos?: any[]; error?: string }>((resolve) => {
       const timer = setTimeout(() => {
         proc.kill('SIGKILL');
-        resolve({ ok: false, error: 'Tiempo de espera agotado (120s)' });
-      }, 120_000);
+        resolve({ ok: false, error: 'No se pudo conectar con UPAO. Los servidores de UPAO solo aceptan conexiones desde Perú. Intenta desde tu computadora local.' });
+      }, 30_000);
 
       proc.on('error', (e) => {
         clearTimeout(timer);
