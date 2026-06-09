@@ -42,13 +42,13 @@ def _resolve_ip(host: str, fallback: str) -> str:
     return fallback
 
 def _build_chromium_args() -> list[str]:
-    if sys.platform != "win32":
-        return ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
-    # Cada subdominio tiene IPs distintos — no usar wildcard.
-    # Los dominios .pe de UPAO rechazan a Google DNS → IPs hardcodeados como fallback.
-    exp_ip    = _resolve_ip("eee-dashboard-prod.10005.elluciancloud.com", "52.0.235.226")
-    api_ip    = _resolve_ip("eee-api.10005.elluciancloud.com",            "54.230.124.29")
-    sso_ip    = _resolve_ip("upaosso.upao.edu.pe",                        "200.62.147.92")
+    # En Linux (Docker/VPS) se necesitan flags extra para Chromium sin sandbox.
+    # En ambas plataformas se aplican host-resolver-rules porque los dominios .pe
+    # de UPAO no resuelven via DNS estándar en servidores cloud.
+    base = ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"] if sys.platform != "win32" else []
+    exp_ip = _resolve_ip("eee-dashboard-prod.10005.elluciancloud.com", "52.0.235.226")
+    api_ip = _resolve_ip("eee-api.10005.elluciancloud.com",            "54.230.124.29")
+    sso_ip = _resolve_ip("upaosso.upao.edu.pe",                        "200.62.147.92")
     rules = ",".join([
         f"MAP experience.elluciancloud.com {exp_ip}",
         f"MAP eee-dashboard-prod.10005.elluciancloud.com {exp_ip}",
@@ -57,7 +57,7 @@ def _build_chromium_args() -> list[str]:
         "MAP ssb.upao.edu.pe 129.153.7.236",
         "MAP login.upao.edu.pe 129.153.7.236",
     ])
-    return [f"--host-resolver-rules={rules}"]
+    return base + [f"--host-resolver-rules={rules}"]
 
 CHROMIUM_ARGS = _build_chromium_args()
 
