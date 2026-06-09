@@ -6,7 +6,8 @@ import {
   TrendingUp, TrendingDown, Layers, FolderPlus, Tag, Settings, Clock, Calendar,
   Eye, EyeOff, ShieldCheck, Target, BarChart3, Calculator, ArrowLeftRight, Filter, AlertCircle, CheckCircle,
   GripVertical, LayoutGrid, ArrowDownAZ, ArrowDown01, RefreshCw, Palette,
-  Lock, Unlock, Bell, Repeat, GraduationCap
+  Lock, Unlock, Bell, Repeat, GraduationCap,
+  ExternalLink, Copy, Check
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 // API URL: uses proxy in dev and env in prod
@@ -344,6 +345,8 @@ const App = () => {
   const [upaoElapsed, setUpaoElapsed] = useState(0)
   const upaoStartRef = useRef(null)
   const [upaoError, setUpaoError] = useState(null)
+  const [upaoNeedsBrowserSync, setUpaoNeedsBrowserSync] = useState(false)
+  const [bookmarkletCopied, setBookmarkletCopied] = useState(false)
   const [expandedCourse, setExpandedCourse] = useState(null)
   const [simGrades, setSimGrades] = useState({})
   const [upaoProfiles, setUpaoProfiles] = useState(() => {
@@ -435,6 +438,7 @@ const App = () => {
   const handleRefreshNotas = async () => {
     setUpaoLoading(true)
     setUpaoError(null)
+    setUpaoNeedsBrowserSync(false)
     try {
       const profile = upaoProfiles.find(p => p.id === activeProfileId)
       const body = {}
@@ -448,9 +452,11 @@ const App = () => {
       if (resp.ok) {
         const data = await resp.json()
         setNotasUpao({ cursos: data.cursos, updatedAt: data.updatedAt })
+        setUpaoNeedsBrowserSync(false)
       } else {
         const err = await resp.json()
         setUpaoError(err.error || 'Error al actualizar notas')
+        if (err.requires_browser_sync) setUpaoNeedsBrowserSync(true)
       }
     } catch (e) {
       setUpaoError('Sin conexión al servidor. Verifica tu internet e intenta de nuevo.')
@@ -1658,19 +1664,104 @@ const App = () => {
           </div>
         )}
 
-        {upaoError && (
+        {upaoError && !upaoNeedsBrowserSync && (
           <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3">
             <AlertCircle size={15} className="text-red-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-[11px] text-red-400 font-bold leading-relaxed">{upaoError}</p>
-              {upaoError.includes('UPAO') && (
-                <p className="text-[10px] text-white/35 mt-1 leading-relaxed">
-                  💡 Usa la app desde tu celular con datos o WiFi en Perú para actualizar las notas.
-                </p>
-              )}
-            </div>
+            <p className="text-[11px] text-red-400 font-bold leading-relaxed">{upaoError}</p>
           </div>
         )}
+
+        {upaoNeedsBrowserSync && (() => {
+          const activeProfile = upaoProfiles.find(p => p.id === activeProfileId)
+          const userForBM = encodeURIComponent(activeProfile?.usuario || 'default')
+          const bmCode = `javascript:(function(){var s=document.createElement('script');s.src='${window.location.origin}/api/notas-upao/capture-script.js?user=${userForBM}&t='+Date.now();document.head.appendChild(s);})();`
+          const copyBM = () => {
+            navigator.clipboard?.writeText(bmCode).then(() => {
+              setBookmarkletCopied(true)
+              setTimeout(() => setBookmarkletCopied(false), 3000)
+            }).catch(() => {
+              const el = document.createElement('textarea')
+              el.value = bmCode
+              document.body.appendChild(el)
+              el.select()
+              document.execCommand('copy')
+              document.body.removeChild(el)
+              setBookmarkletCopied(true)
+              setTimeout(() => setBookmarkletCopied(false), 3000)
+            })
+          }
+          const verifySyncResult = async () => {
+            await cargarNotasUpao(activeProfileId)
+            const profile = upaoProfiles.find(p => p.id === activeProfileId)
+            const user = profile?.usuario || activeProfileId
+            try {
+              const r = await fetch(`${API}/notas-upao?user=${encodeURIComponent(user)}`)
+              if (r.ok) {
+                const d = await r.json()
+                if (d.cursos && d.cursos.length > 0) {
+                  setNotasUpao(d)
+                  setUpaoNeedsBrowserSync(false)
+                  setUpaoError(null)
+                } else {
+                  setUpaoError('Aún no hay notas. Ejecuta el bookmarklet primero.')
+                }
+              }
+            } catch(e) {}
+          }
+          return (
+            <div className="rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)'}}>
+              <div className="px-4 pt-4 pb-3 flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle size={13} className="text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-black text-white/90">UPAO bloquea servidores fuera de Perú</p>
+                  <p className="text-[9.5px] text-white/35 mt-0.5">Sincroniza desde tu celular con 3 pasos</p>
+                </div>
+              </div>
+              <div className="px-4 pb-4 space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-white/8 flex items-center justify-center text-[9px] font-black text-white/50 flex-shrink-0 mt-0.5">1</span>
+                  <div className="flex-1">
+                    <p className="text-[10px] text-white/60 mb-1.5">Guarda este bookmarklet en Safari (toca Compartir → Añadir a Marcadores)</p>
+                    <button onClick={copyBM}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black transition-all active:scale-95"
+                      style={{background: bookmarkletCopied ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.07)', border: bookmarkletCopied ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(255,255,255,0.1)'}}>
+                      {bookmarkletCopied
+                        ? <><Check size={11} className="text-emerald-400"/><span className="text-emerald-400">¡Copiado!</span></>
+                        : <><Copy size={11} className="text-white/50"/><span className="text-white/60">Copiar código del bookmarklet</span></>
+                      }
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-white/8 flex items-center justify-center text-[9px] font-black text-white/50 flex-shrink-0 mt-0.5">2</span>
+                  <div className="flex-1">
+                    <p className="text-[10px] text-white/60 mb-1.5">Abre las notas de UPAO en Safari y ejecuta el marcador</p>
+                    <a href="https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades" target="_blank" rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black text-white/60 transition-all active:scale-95"
+                      style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)'}}>
+                      <ExternalLink size={11} className="text-white/40"/>
+                      Abrir UPAO SSB
+                    </a>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-white/8 flex items-center justify-center text-[9px] font-black text-white/50 flex-shrink-0 mt-0.5">3</span>
+                  <div className="flex-1">
+                    <p className="text-[10px] text-white/60 mb-1.5">Cuando el script diga "sincronizado", vuelve aquí y verifica</p>
+                    <button onClick={verifySyncResult}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black text-white/70 transition-all active:scale-95"
+                      style={{background:'rgba(168,85,247,0.15)',border:'1px solid rgba(168,85,247,0.3)'}}>
+                      <CheckCircle size={11} className="text-[#c084fc]"/>
+                      <span className="text-[#c084fc]">Verificar sincronización</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* ── Pantalla de carga ── */}
         {upaoLoading && (() => {

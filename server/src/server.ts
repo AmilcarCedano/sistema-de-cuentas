@@ -22,6 +22,7 @@ const PYTHON_CMD = process.env.PYTHON_CMD
 
 app.use(cors());
 app.use(express.json());
+app.use(express.text({ type: 'text/plain' }));
 
 // ────────────────────────────── CUENTAS ──────────────────────────────
 
@@ -733,10 +734,10 @@ app.post('/api/notas-upao/refresh', async (req, res) => {
       process.stderr.write(`[scraper] ${d}`);
     });
 
-    const outcome = await new Promise<{ ok: boolean; cursos?: any[]; error?: string }>((resolve) => {
+    const outcome = await new Promise<{ ok: boolean; cursos?: any[]; error?: string; requires_browser_sync?: boolean }>((resolve) => {
       const timer = setTimeout(() => {
         proc.kill('SIGKILL');
-        resolve({ ok: false, error: 'No se pudo conectar con UPAO. Los servidores de UPAO solo aceptan conexiones desde Perú. Intenta desde tu computadora local.' });
+        resolve({ ok: false, error: 'Los servidores de UPAO solo aceptan conexiones desde Perú.', requires_browser_sync: true });
       }, 30_000);
 
       proc.on('error', (e) => {
@@ -760,7 +761,10 @@ app.post('/api/notas-upao/refresh', async (req, res) => {
     });
 
     if (!outcome.ok || !outcome.cursos) {
-      return res.status(500).json({ error: outcome.error || 'Error desconocido' });
+      return res.status(500).json({
+        error: outcome.error || 'Error desconocido',
+        requires_browser_sync: outcome.requires_browser_sync || false,
+      });
     }
 
     const saved = await prisma.notasUpao.upsert({
@@ -772,6 +776,183 @@ app.post('/api/notas-upao/refresh', async (req, res) => {
     res.json({ ok: true, cursos: saved.cursos, updatedAt: saved.updatedAt });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Error al actualizar notas' });
+  }
+});
+
+// Script JS que el bookmarklet inyecta en la página de SSB (corre en el contexto del browser del alumno)
+app.get('/api/notas-upao/capture-script.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0]?.trim() || 'https';
+  const host  = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || 'sistema-anderson.duckdns.org';
+  const BACKEND  = `${proto}://${host}`;
+  const USER_ID  = (req.query.user as string) || process.env.UPAO_USER || 'default';
+  const CURSO_NOMBRES = {
+    'ISIA 107': 'Infraestructura como Código',
+    'ISIA 118': 'Gobierno de Datos',
+    'ISIA 127': 'Aplic. Móviles para Negocios',
+    'ISIA 104': 'Cómputo Distribuido y Paralelo',
+    'ICSI 676': 'Métodos Cuantitativos para Negocios',
+    'ISIA 117': 'Proyecto de Investigación',
+  };
+  res.send(`(async function upaoCapture() {
+  if (!location.hostname.includes('ssb.upao.edu.pe')) {
+    alert('Este script debe ejecutarse en ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades');
+    return;
+  }
+  const BACKEND = ${JSON.stringify(BACKEND)};
+  const USER    = ${JSON.stringify(USER_ID)};
+  const CURSO_NOMBRES = ${JSON.stringify(CURSO_NOMBRES)};
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const waitFor = (sel, timeout=12000) => new Promise((res,rej) => {
+    const t = Date.now();
+    const check = () => {
+      const el = document.querySelector(sel);
+      if (el) return res(el);
+      if (Date.now()-t > timeout) return rej(new Error('Timeout: '+sel));
+      setTimeout(check, 300);
+    };
+    check();
+  });
+  let overlay = document.getElementById('__upao_cap');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = '__upao_cap';
+    overlay.style.cssText = 'position:fixed;top:16px;right:16px;z-index:2147483647;background:rgba(10,10,20,0.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:#fff;padding:16px 18px;border-radius:18px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;max-width:270px;box-shadow:0 8px 32px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.12);min-width:200px';
+    document.body.appendChild(overlay);
+  }
+  const log = msg => {
+    overlay.innerHTML = '<div style="font-weight:800;font-size:11px;letter-spacing:.05em;opacity:.5;margin-bottom:6px;text-transform:uppercase">Gordito Sync</div><div style="line-height:1.55;opacity:.9">'+msg+'</div>';
+  };
+  try {
+    log('Iniciando captura…');
+    const openDD = id => {
+      const btn = document.querySelector(id+'-button');
+      if (btn) { btn.click(); return; }
+      const s = document.querySelector('#s2id_'+id.replace('#','')+' .select2-choice');
+      if (s) { s.click(); }
+    };
+    const termEl = document.querySelector('#term-readonly');
+    if (termEl && !termEl.value) {
+      log('Seleccionando periodo…');
+      termEl.click();
+      await sleep(800);
+      const to = document.querySelectorAll('.select2-results li');
+      for (const o of to) {
+        if (!o.textContent.includes('All Terms') && o.textContent.trim()) { o.click(); break; }
+      }
+      await sleep(800);
+    }
+    const lvlEl = document.querySelector('#level-readonly');
+    if (lvlEl && !lvlEl.value) {
+      log('Seleccionando nivel…');
+      try {
+        lvlEl.click(); await sleep(800);
+        const lo = document.querySelectorAll('.select2-results li');
+        for (const o of lo) { if (o.textContent.trim()) { o.click(); break; } }
+        await sleep(800);
+      } catch(e) {}
+    }
+    log('Esperando cursos…');
+    try { await waitFor('#courseWorkContainer', 15000); } catch(e) {}
+    await sleep(1000);
+    const nombresMap = {};
+    document.querySelectorAll('table tbody tr, [xe-section] tr').forEach(row => {
+      const cells = {};
+      row.querySelectorAll('[xe-field]').forEach(td => {
+        cells[td.getAttribute('xe-field')] = td.textContent.trim().replace(/\\s+/g,' ').replace(/press enter key.*/i,'').trim();
+      });
+      const crn = cells.courseReferenceNumber||cells.crn||'';
+      const title = cells.courseTitle||cells.title||'';
+      const code = (cells.subject&&cells.courseNumber) ? cells.subject+' '+cells.courseNumber : '';
+      if (title && title.toLowerCase()!=='course title') {
+        if (code) nombresMap[code] = title;
+        if (crn)  nombresMap[crn]  = title;
+      }
+    });
+    log('Abriendo Components…');
+    const compLink = [...document.querySelectorAll('a,button')].find(el => /^components$/i.test(el.textContent.trim()));
+    if (!compLink) throw new Error('No se encontró el enlace "Components"');
+    compLink.click();
+    await sleep(2000);
+    log('Obteniendo cursos…');
+    openDD('courses');
+    await sleep(1500);
+    const courseOptions = [...document.querySelectorAll('.select2-results li')]
+      .map(o => o.textContent.trim())
+      .filter(t => t && !/seleccionar|searching/i.test(t));
+    document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true}));
+    await sleep(300);
+    if (!courseOptions.length) throw new Error('No se encontraron cursos');
+    const allCourses = [];
+    for (let i=0; i<courseOptions.length; i++) {
+      const ct = courseOptions[i];
+      log('('+(i+1)+'/'+courseOptions.length+') '+ct.split('|')[0].trim()+'…');
+      openDD('courses');
+      await sleep(800);
+      const opts = [...document.querySelectorAll('.select2-results li')];
+      const found = opts.find(o => o.textContent.trim()===ct) || opts.find(o => o.textContent.includes(ct.split('|')[0].trim()));
+      if (found) found.click();
+      await sleep(1000);
+      await new Promise(res => { const t=Date.now(); const c=()=>{ if(!document.querySelector('.loading,.spinner,[aria-busy="true"]')||Date.now()-t>8000) return res(); setTimeout(c,300); }; setTimeout(c,500); });
+      await sleep(400);
+      document.querySelectorAll('.nested-arrow.nested-arrow-closed').forEach(a => a.click());
+      await sleep(300);
+      const cl = s => s.trim().replace(/\\s+/g,' ');
+      const hEl = document.querySelector('[xe-field="creditHours"]');
+      const hRaw = hEl ? cl(hEl.textContent) : '';
+      const hM = hRaw.match(/([\\d.]+)/);
+      const horas = hM ? hM[1] : hRaw;
+      const calNoDisp = document.body.innerText.includes('no disponible');
+      const componentes = [];
+      document.querySelectorAll('table tbody tr').forEach(row => {
+        const cells = {};
+        row.querySelectorAll('[xe-field]').forEach(td => { cells[td.getAttribute('xe-field')]=cl(td.textContent); });
+        if (cells.name) { cells.nested = !!row.querySelector('.nested-arrow'); if(cells.mustPass==='Yes')cells.mustPass='Sí'; componentes.push(cells); }
+      });
+      const parts = ct.split('|');
+      const codePart = parts[0].trim();
+      const nrc = parts[1]?.trim()||'';
+      const sp = codePart.split(' - ',2);
+      const codigo = sp[0].trim();
+      const nameDD = (sp[1]||'').replace(/press enter key.*/i,'').replace(/\\s+/g,' ').trim();
+      let nameComp = '';
+      for (const c of componentes) { const r=(c.courseTitle||'').trim(); if(r&&r.toLowerCase()!=='course title'){nameComp=r.replace(/press enter key.*/i,'').replace(/\\s+/g,' ').trim();break;} }
+      const nombre = CURSO_NOMBRES[codigo]||nombresMap[codigo]||nombresMap[nrc]||nameComp||nameDD||codigo;
+      allCourses.push({nrc:ct, codigo, nrc_num:nrc, nombre, horas, cal_disponible:!calNoDisp, componentes});
+    }
+    log('Enviando '+allCourses.length+' cursos…');
+    await fetch(BACKEND+'/api/notas-upao/bookmarklet?user='+encodeURIComponent(USER), {
+      method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(allCourses)
+    });
+    overlay.style.background = 'rgba(16,185,129,0.92)';
+    log('✅ ¡Notas sincronizadas! Vuelve a Gordito y presiona Verificar.');
+    setTimeout(()=>overlay.remove(), 6000);
+  } catch(e) {
+    overlay.style.background = 'rgba(220,38,38,0.92)';
+    log('❌ '+e.message);
+    console.error('[upaoCapture]', e);
+    setTimeout(()=>overlay.remove(), 9000);
+  }
+})();`);
+});
+
+// Recibe notas del bookmarklet (no-cors simple request: text/plain)
+app.post('/api/notas-upao/bookmarklet', async (req, res) => {
+  try {
+    const user = (req.query.user as string) || process.env.UPAO_USER || 'default';
+    const raw = req.body;
+    if (!raw) return res.status(400).json({ ok: false, error: 'Body vacío' });
+    const cursos = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));
+    const arr = Array.isArray(cursos) ? cursos : (cursos.cursos || []);
+    await prisma.notasUpao.upsert({
+      where:  { id: user },
+      update: { cursos: arr as any },
+      create: { id: user, cursos: arr as any },
+    });
+    res.json({ ok: true, count: arr.length });
+  } catch (e: any) {
+    res.status(400).json({ ok: false, error: e.message });
   }
 });
 
