@@ -21,7 +21,7 @@ COPY . .
 # Archivos del scraper (copiados desde el contexto raíz del proyecto)
 COPY scraper/ ./scraper/
 
-RUN npx prisma generate
+RUN npx prisma generate --schema server/prisma/schema.prisma
 
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npx tsx src/server.ts"]
+CMD ["sh", "-c", "npx prisma db push --schema server/prisma/schema.prisma --accept-data-loss && npx tsx server/src/server.ts"]
