@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import net from 'net';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +20,18 @@ const SCRAPER_SCRIPT = process.env.SCRAPER_SCRIPT
   || path.resolve(__dirname, '../scraper/scrape_once.py');
 const PYTHON_CMD = process.env.PYTHON_CMD
   || (process.platform === 'win32' ? 'python' : 'python3');
+
+// Verifica en ~4s si el servidor OIDC de UPAO es alcanzable desde esta IP
+function checkUPAOReachable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const sock = new net.Socket();
+    sock.setTimeout(4000);
+    sock.once('connect', () => { sock.destroy(); resolve(true); });
+    sock.once('timeout', () => { sock.destroy(); resolve(false); });
+    sock.once('error',   () => resolve(false));
+    sock.connect(410, '200.62.147.92'); // upaosso.upao.edu.pe
+  });
+}
 
 app.use(cors());
 app.use(express.json());
@@ -712,6 +725,16 @@ app.post('/api/notas-upao/refresh', async (req, res) => {
   try {
     const { username, password } = req.body || {};
     const user = username || process.env.UPAO_USER || 'default';
+
+    // Check rápido (~4s): si UPAO no es alcanzable desde este servidor,
+    // retorna de inmediato para que el frontend muestre la guía del bookmarklet
+    const reachable = await checkUPAOReachable();
+    if (!reachable) {
+      return res.status(500).json({
+        error: 'Los servidores de UPAO solo aceptan conexiones desde Perú.',
+        requires_browser_sync: true,
+      });
+    }
 
     // Variables de entorno para el proceso hijo
     const env: NodeJS.ProcessEnv = { ...process.env };

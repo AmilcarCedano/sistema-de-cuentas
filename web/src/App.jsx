@@ -1599,12 +1599,21 @@ const App = () => {
               </p>
             )}
           </div>
-          <button onClick={handleRefreshNotas} disabled={upaoLoading}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.07] border border-white/15 rounded-2xl text-white/70 text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-50 active:scale-95 flex-shrink-0">
-            <RefreshCw size={14} className={upaoLoading ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">{upaoLoading ? 'Cargando...' : 'Actualizar'}</span>
-            <span className="sm:hidden">{upaoLoading ? '...' : 'Actualizar'}</span>
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={handleRefreshNotas} disabled={upaoLoading}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.07] border border-white/15 rounded-2xl text-white/70 text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-50 active:scale-95">
+              <RefreshCw size={14} className={upaoLoading ? 'animate-spin' : ''} />
+              <span>{upaoLoading ? '...' : 'Auto'}</span>
+            </button>
+            <button onClick={() => { setUpaoNeedsBrowserSync(true); setUpaoError(null); }}
+              disabled={upaoLoading}
+              title="Sincronizar desde tu celular con datos peruanos"
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 active:scale-95"
+              style={{background:'rgba(168,85,247,0.15)',border:'1px solid rgba(168,85,247,0.35)',color:'rgba(192,132,252,0.9)'}}>
+              <ExternalLink size={13} />
+              <span>Celular</span>
+            </button>
+          </div>
         </div>
 
         {/* ── Selector de perfiles ── */}
