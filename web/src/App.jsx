@@ -5,9 +5,8 @@ import {
   Download, StickyNote, ChevronUp, ChevronDown,
   TrendingUp, TrendingDown, Layers, FolderPlus, Tag, Settings, Clock, Calendar,
   Eye, EyeOff, ShieldCheck, Target, BarChart3, Calculator, ArrowLeftRight, Filter, AlertCircle, CheckCircle,
-  GripVertical, LayoutGrid, ArrowDownAZ, ArrowDown01, RefreshCw, Palette,
-  Lock, Unlock, Bell, Repeat, GraduationCap,
-  ExternalLink, Copy, Check, Bookmark
+  GripVertical, LayoutGrid, ArrowDownAZ, ArrowDown01, Palette,
+  Lock, Unlock, Bell, Repeat, GraduationCap
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 // API URL: uses proxy in dev and env in prod
@@ -274,17 +273,6 @@ const MOCK_NOTAS = [
   },
 ]
 
-const SCRAPE_STEPS = [
-  { icon: '🔌', label: 'Conectando al servidor' },
-  { icon: '🔑', label: 'Iniciando sesión en UPAO' },
-  { icon: '🏫', label: 'Accediendo al campus virtual' },
-  { icon: '📚', label: 'Buscando tus cursos' },
-  { icon: '📊', label: 'Descargando calificaciones' },
-  { icon: '💾', label: 'Guardando datos' },
-]
-// ms desde el inicio en que cada paso se activa (~37s total real)
-const SCRAPE_STEP_TIMES = [0, 5000, 14000, 19000, 24000, 34000]
-const SCRAPE_EXPECTED_SECS = 40
 
 // --- MAIN APP ---
 
@@ -340,26 +328,8 @@ const App = () => {
 
   // Notas UPAO
   const [notasUpao, setNotasUpao] = useState({ cursos: MOCK_NOTAS, updatedAt: new Date().toISOString() })
-  const [upaoLoading, setUpaoLoading] = useState(false)
-  const [upaoStep, setUpaoStep] = useState(0)
-  const [upaoElapsed, setUpaoElapsed] = useState(0)
-  const upaoStartRef = useRef(null)
-  const [upaoError, setUpaoError] = useState(null)
-  const [upaoNeedsBrowserSync, setUpaoNeedsBrowserSync] = useState(false)
-  const [bookmarkletCopied, setBookmarkletCopied] = useState(false)
   const [expandedCourse, setExpandedCourse] = useState(null)
   const [simGrades, setSimGrades] = useState({})
-  const [upaoProfiles, setUpaoProfiles] = useState(() => {
-    try {
-      const s = localStorage.getItem('upao_profiles')
-      return s ? JSON.parse(s) : [{ id: 'default', nombre: 'Yo', usuario: '', password: '' }]
-    } catch { return [{ id: 'default', nombre: 'Yo', usuario: '', password: '' }] }
-  })
-  const [activeProfileId, setActiveProfileId] = useState(
-    () => localStorage.getItem('upao_active_profile') || 'default'
-  )
-  const [showAddProfile, setShowAddProfile] = useState(false)
-  const [profileForm, setProfileForm] = useState({ nombre: '', usuario: '', password: '' })
 
   // Category inline form
   const [catFormOpen, setCatFormOpen] = useState(null)
@@ -421,79 +391,16 @@ const App = () => {
     }
   }, [])
 
-  const cargarNotasUpao = useCallback(async (profileId) => {
+  const cargarNotasUpao = useCallback(async () => {
     try {
-      const pid = profileId || activeProfileId
-      const profile = upaoProfiles.find(p => p.id === pid)
-      const user = profile?.usuario || pid
-      const resp = await fetch(`${API}/notas-upao?user=${encodeURIComponent(user)}`)
+      const resp = await fetch(`${API}/notas-upao?user=default`)
       if (resp.ok) {
         const data = await resp.json()
-        if (data.cursos && data.cursos.length > 0) setNotasUpao(data)
+        if (data.cursos?.length > 0) setNotasUpao(data)
         else setNotasUpao({ cursos: [], updatedAt: null })
       }
-    } catch (e) { console.error('Error cargando notas UPAO') }
-  }, [activeProfileId, upaoProfiles])
-
-  const handleRefreshNotas = async () => {
-    setUpaoLoading(true)
-    setUpaoError(null)
-    setUpaoNeedsBrowserSync(false)
-    try {
-      const profile = upaoProfiles.find(p => p.id === activeProfileId)
-      const body = {}
-      if (profile?.usuario)  body.username = profile.usuario
-      if (profile?.password) body.password = profile.password
-      const resp = await fetch(`${API}/notas-upao/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      })
-      if (resp.ok) {
-        const data = await resp.json()
-        setNotasUpao({ cursos: data.cursos, updatedAt: data.updatedAt })
-      } else {
-        // El VPS (Alemania) siempre falla — mostrar guía del bookmarklet
-        setUpaoNeedsBrowserSync(true)
-      }
-    } catch (e) {
-      setUpaoError('Sin conexión al servidor. Verifica tu internet e intenta de nuevo.')
-    } finally {
-      setSimGrades({})
-      setUpaoLoading(false)
-    }
-  }
-
-  const saveProfiles = (profiles) => {
-    setUpaoProfiles(profiles)
-    localStorage.setItem('upao_profiles', JSON.stringify(profiles))
-  }
-
-  const handleSwitchProfile = async (id) => {
-    setActiveProfileId(id)
-    localStorage.setItem('upao_active_profile', id)
-    setSimGrades({})
-    setNotasUpao({ cursos: [], updatedAt: null })
-    await cargarNotasUpao(id)
-  }
-
-  const handleAddProfile = async () => {
-    if (!profileForm.usuario.trim() || !profileForm.password.trim()) return
-    const nombre = profileForm.nombre.trim() || profileForm.usuario.trim()
-    const newP = { id: profileForm.usuario.trim(), nombre, usuario: profileForm.usuario.trim(), password: profileForm.password.trim() }
-    const updated = [...upaoProfiles.filter(p => p.id !== newP.id), newP]
-    saveProfiles(updated)
-    setProfileForm({ nombre: '', usuario: '', password: '' })
-    setShowAddProfile(false)
-    await handleSwitchProfile(newP.id)
-  }
-
-  const handleDeleteProfile = (id) => {
-    if (upaoProfiles.length <= 1) return
-    const updated = upaoProfiles.filter(p => p.id !== id)
-    saveProfiles(updated)
-    if (activeProfileId === id) handleSwitchProfile(updated[0].id)
-  }
+    } catch {}
+  }, [])
 
   useEffect(() => {
     Promise.all([cargarCuentas(false), cargarNotas(), cargarNotasUpao()])
@@ -501,25 +408,6 @@ const App = () => {
     const interval = setInterval(() => cargarCuentas(false), 5000)
     return () => clearInterval(interval)
   }, [])
-
-  useEffect(() => {
-    if (!upaoLoading) {
-      setUpaoStep(0)
-      setUpaoElapsed(0)
-      upaoStartRef.current = null
-      return
-    }
-    upaoStartRef.current = Date.now()
-    setUpaoStep(0)
-    setUpaoElapsed(0)
-    const timers = SCRAPE_STEP_TIMES.slice(1).map((t, i) =>
-      setTimeout(() => setUpaoStep(i + 1), t)
-    )
-    const ticker = setInterval(() => {
-      if (upaoStartRef.current) setUpaoElapsed(Math.floor((Date.now() - upaoStartRef.current) / 1000))
-    }, 200)
-    return () => { timers.forEach(clearTimeout); clearInterval(ticker) }
-  }, [upaoLoading])
 
   // --- DRAG & DROP HANDLERS ---
   const handleDragStart = (e, txId) => {
@@ -1597,255 +1485,16 @@ const App = () => {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={handleRefreshNotas} disabled={upaoLoading}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.07] border border-white/15 rounded-2xl text-white/70 text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-50 active:scale-95">
-              <RefreshCw size={14} className={upaoLoading ? 'animate-spin' : ''} />
-              <span>{upaoLoading ? '...' : 'Auto'}</span>
-            </button>
-            <button onClick={() => { setUpaoNeedsBrowserSync(true); setUpaoError(null); }}
-              disabled={upaoLoading}
-              title="Sincronizar desde tu celular con datos peruanos"
-              className="flex items-center gap-1.5 px-3 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 active:scale-95"
-              style={{background:'rgba(168,85,247,0.15)',border:'1px solid rgba(168,85,247,0.35)',color:'rgba(192,132,252,0.9)'}}>
-              <ExternalLink size={13} />
-              <span>Celular</span>
-            </button>
-          </div>
         </div>
-
-        {/* ── Selector de perfiles ── */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {upaoProfiles.map(p => (
-            <button key={p.id} onClick={() => handleSwitchProfile(p.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[10px] font-black transition-all ${
-                p.id === activeProfileId
-                  ? 'bg-white/[0.12] border border-white/25 text-white shadow-sm'
-                  : 'bg-white/[0.04] border border-transparent text-white/45 hover:bg-white/[0.08] hover:text-white/65'
-              }`}>
-              <span>{p.id === activeProfileId ? '😊' : '👤'}</span>
-              <span className="truncate max-w-[80px]">{p.nombre}</span>
-              {upaoProfiles.length > 1 && p.id !== upaoProfiles[0].id && (
-                <span onClick={e => { e.stopPropagation(); handleDeleteProfile(p.id) }}
-                  className="ml-0.5 opacity-40 hover:opacity-100 text-red-400 transition-opacity cursor-pointer">
-                  <X size={10} />
-                </span>
-              )}
-            </button>
-          ))}
-          <button onClick={() => setShowAddProfile(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[10px] font-black transition-all ${
-              showAddProfile ? 'bg-white/10 text-white' : 'bg-white/5 text-white/30 hover:bg-white/8 hover:text-white/60'
-            }`}>
-            <PlusCircle size={12} /> Agregar
-          </button>
-        </div>
-
-        {/* ── Formulario agregar perfil ── */}
-        {showAddProfile && (
-          <div className="rounded-[22px] border border-white/10 p-4 space-y-3 animate-slide-down" style={{ background:'rgba(255,255,255,0.05)', backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)' }}>
-            <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Nuevo perfil UPAO</p>
-            <input placeholder="Nombre (opcional)" value={profileForm.nombre}
-              onChange={e => setProfileForm(f => ({ ...f, nombre: e.target.value }))}
-              className="w-full bg-white/5 border border-white/10 py-2.5 px-4 rounded-xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <input placeholder="ID UPAO (ej: 000123456)" value={profileForm.usuario}
-                onChange={e => setProfileForm(f => ({ ...f, usuario: e.target.value }))}
-                className="bg-white/5 border border-white/10 py-2.5 px-4 rounded-xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
-              <input type="password" placeholder="Contraseña (NIP)" value={profileForm.password}
-                onChange={e => setProfileForm(f => ({ ...f, password: e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && handleAddProfile()}
-                className="bg-white/5 border border-white/10 py-2.5 px-4 rounded-xl text-white text-sm font-bold outline-none focus:border-accent transition-all" />
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => { setShowAddProfile(false); setProfileForm({ nombre: '', usuario: '', password: '' }) }}
-                className="flex-1 py-2.5 bg-white/5 rounded-xl text-[10px] font-black text-white/30 hover:text-white/60 transition-all">
-                Cancelar
-              </button>
-              <button onClick={handleAddProfile}
-                disabled={!profileForm.usuario.trim() || !profileForm.password.trim()}
-                className="flex-1 py-2.5 bg-white/90 rounded-xl text-[10px] font-black text-[#111] shadow-lg hover:brightness-95 active:scale-95 transition-all disabled:opacity-40">
-                Guardar y cargar notas
-              </button>
-            </div>
-          </div>
-        )}
-
-        {upaoError && !upaoNeedsBrowserSync && (
-          <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3">
-            <AlertCircle size={15} className="text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] text-red-400 font-bold leading-relaxed">{upaoError}</p>
-          </div>
-        )}
-
-        {upaoNeedsBrowserSync && (() => {
-          const activeProfile = upaoProfiles.find(p => p.id === activeProfileId)
-          const userForBM = encodeURIComponent(activeProfile?.usuario || 'default')
-          const bmCode = `javascript:(function(){var s=document.createElement('script');s.src='${window.location.origin}/api/notas-upao/capture-script.js?user=${userForBM}&t='+Date.now();document.head.appendChild(s);})();`
-          const copyBM = () => {
-            navigator.clipboard?.writeText(bmCode).then(() => {
-              setBookmarkletCopied(true)
-              setTimeout(() => setBookmarkletCopied(false), 3000)
-            }).catch(() => {
-              const el = document.createElement('textarea')
-              el.value = bmCode
-              document.body.appendChild(el)
-              el.select()
-              document.execCommand('copy')
-              document.body.removeChild(el)
-              setBookmarkletCopied(true)
-              setTimeout(() => setBookmarkletCopied(false), 3000)
-            })
-          }
-          const verifySyncResult = async () => {
-            await cargarNotasUpao(activeProfileId)
-            const profile = upaoProfiles.find(p => p.id === activeProfileId)
-            const user = profile?.usuario || activeProfileId
-            try {
-              const r = await fetch(`${API}/notas-upao?user=${encodeURIComponent(user)}`)
-              if (r.ok) {
-                const d = await r.json()
-                if (d.cursos && d.cursos.length > 0) {
-                  setNotasUpao(d)
-                  setUpaoNeedsBrowserSync(false)
-                  setUpaoError(null)
-                } else {
-                  setUpaoError('Aún no hay notas. Ejecuta el bookmarklet primero.')
-                }
-              }
-            } catch(e) {}
-          }
-          return (
-            <div className="rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)'}}>
-              <div className="px-4 pt-4 pb-3 flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle size={13} className="text-amber-400" />
-                </div>
-                <div>
-                  <p className="text-[11px] font-black text-white/90">UPAO bloquea servidores fuera de Perú</p>
-                  <p className="text-[9.5px] text-white/35 mt-0.5">Sincroniza desde tu celular con 3 pasos</p>
-                </div>
-              </div>
-              <div className="px-4 pb-4 space-y-2.5">
-                <div className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-white/8 flex items-center justify-center text-[9px] font-black text-white/50 flex-shrink-0 mt-0.5">1</span>
-                  <div className="flex-1">
-                    <p className="text-[10px] text-white/60 mb-1.5">Mantén presionado este link → <strong className="text-white/80">Añadir a Marcadores</strong></p>
-                    <a href={bmCode}
-                      onClick={e => e.preventDefault()}
-                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black transition-all active:scale-95 select-none"
-                      style={{background:'rgba(251,191,36,0.15)',border:'1px solid rgba(251,191,36,0.3)',textDecoration:'none',display:'flex',WebkitUserSelect:'none',userSelect:'none'}}>
-                      <Bookmark size={11} className="text-amber-400"/>
-                      <span className="text-amber-300">Sync UPAO — mantén presionado</span>
-                    </a>
-                    <button onClick={copyBM} className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[9px] font-bold mt-1.5 transition-all active:scale-95"
-                      style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)'}}>
-                      {bookmarkletCopied
-                        ? <><Check size={10} className="text-emerald-400"/><span className="text-emerald-400">¡Copiado!</span></>
-                        : <><Copy size={10} className="text-white/30"/><span className="text-white/30">o copiar código (alternativa)</span></>
-                      }
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-white/8 flex items-center justify-center text-[9px] font-black text-white/50 flex-shrink-0 mt-0.5">2</span>
-                  <div className="flex-1">
-                    <p className="text-[10px] text-white/60 mb-1.5">Abre las notas de UPAO en Safari y ejecuta el marcador</p>
-                    <a href="https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades" target="_blank" rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black text-white/60 transition-all active:scale-95"
-                      style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)'}}>
-                      <ExternalLink size={11} className="text-white/40"/>
-                      Abrir UPAO SSB
-                    </a>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-white/8 flex items-center justify-center text-[9px] font-black text-white/50 flex-shrink-0 mt-0.5">3</span>
-                  <div className="flex-1">
-                    <p className="text-[10px] text-white/60 mb-1.5">Cuando el script diga "sincronizado", vuelve aquí y verifica</p>
-                    <button onClick={verifySyncResult}
-                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black text-white/70 transition-all active:scale-95"
-                      style={{background:'rgba(168,85,247,0.15)',border:'1px solid rgba(168,85,247,0.3)'}}>
-                      <CheckCircle size={11} className="text-[#c084fc]"/>
-                      <span className="text-[#c084fc]">Verificar sincronización</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* ── Pantalla de carga ── */}
-        {upaoLoading && (() => {
-          const pct = Math.min(
-            Math.max(
-              Math.round((upaoElapsed / SCRAPE_EXPECTED_SECS) * 100),
-              Math.round((upaoStep / (SCRAPE_STEPS.length - 1)) * 100)
-            ), 98
-          )
-          const mins = Math.floor(upaoElapsed / 60)
-          const secs = upaoElapsed % 60
-          const timeStr = mins > 0 ? `${mins}:${String(secs).padStart(2,'0')}` : `${secs}s`
-          return (
-          <div className="relative overflow-hidden rounded-[28px] p-5" style={{ background:'rgba(255,255,255,0.05)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }}>
-            <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-32 bg-[#a855f7]/8 blur-3xl rounded-full" />
-            <div className="relative flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-2xl bg-[#a855f7]/20 flex items-center justify-center flex-shrink-0">
-                <GraduationCap size={18} className="text-[#c084fc]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-black text-white leading-tight">Cargando tus notas</p>
-                <p className="text-[10px] text-white/30 font-bold">UPAO · Campus Virtual</p>
-              </div>
-              <div className="flex flex-col items-end flex-shrink-0">
-                <span className="text-[24px] font-black text-[#c084fc] tabular-nums leading-none">{timeStr}</span>
-                <span className="text-[8px] text-white/20 font-black uppercase tracking-widest">transcurridos</span>
-              </div>
-            </div>
-            <div className="relative mb-4">
-              <div className="h-2.5 bg-white/5 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${pct}%`, background: 'linear-gradient(90deg,rgba(168,85,247,0.5),rgba(192,132,252,0.9),rgba(168,85,247,0.5))', boxShadow: '0 0 14px rgba(168,85,247,0.5)' }} />
-              </div>
-              <div className="flex justify-between mt-1.5">
-                <span className="text-[9px] text-[#c084fc]/70 font-black">{pct}%</span>
-                <span className="text-[9px] text-white/20 font-bold">~{SCRAPE_EXPECTED_SECS}s total</span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              {SCRAPE_STEPS.map((step, i) => {
-                const done = i < upaoStep
-                const current = i === upaoStep
-                return (
-                  <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-500 ${
-                    current ? 'bg-[#a855f7]/10 border border-[#a855f7]/25' :
-                    done    ? 'bg-emerald-500/5 border border-transparent' :
-                              'border border-transparent opacity-20'
-                  }`}>
-                    <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-black ${
-                      done ? 'bg-emerald-500/25 text-emerald-400' : current ? 'bg-[#a855f7]/30' : 'bg-white/5'
-                    }`}>
-                      {done ? '✓' : current ? <div className="w-1.5 h-1.5 rounded-full bg-[#c084fc] animate-pulse" /> : <div className="w-1 h-1 rounded-full bg-white/20" />}
-                    </div>
-                    <span className={`text-[11px] font-bold ${done ? 'text-emerald-400' : current ? 'text-white' : 'text-white/25'}`}>
-                      {step.icon} {step.label}
-                    </span>
-                    {current && <span className="ml-auto text-[8px] text-[#c084fc]/70 font-black animate-pulse">en curso</span>}
-                    {done && <span className="ml-auto text-[8px] text-emerald-400/50 font-black">✓</span>}
-                  </div>
-                )
-              })}
-            </div>
           </div>
           )
         })()}
 
-        {!upaoLoading && notasUpao.cursos.length === 0 && (
+        {notasUpao.cursos.length === 0 && (
           <div className="py-12 rounded-[28px] text-center px-6" style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)' }}>
             <GraduationCap size={40} className="mx-auto text-white/10 mb-3" />
             <p className="text-[11px] text-white/40 font-bold uppercase tracking-widest">Sin datos aún</p>
-            <p className="text-[10px] text-white/20 mt-1.5">Presiona "Actualizar" para cargar tus notas</p>
+            <p className="text-[10px] text-white/20 mt-1.5">Ejecuta "Sync UPAO" en tu PC para cargar tus notas</p>
           </div>
         )}
 

@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
 
-// ────────────────────────────── CUENTAS ──────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ CUENTAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 app.get('/api/cuentas', async (req, res) => {
   try {
@@ -73,7 +73,7 @@ app.delete('/api/cuentas/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// ────────────────────────────── SALDOS MANUALES (ARQUEO) ──────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ SALDOS MANUALES (ARQUEO) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 app.post('/api/cuentas/:id/saldos', async (req, res) => {
   const { nombre, monto } = req.body;
@@ -88,7 +88,7 @@ app.delete('/api/saldos/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// ────────────────────────────── GRUPOS ──────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ GRUPOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 app.post('/api/cuentas/:id/grupos', async (req, res) => {
   const { nombre, color } = req.body;
@@ -103,7 +103,7 @@ app.delete('/api/grupos/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// ────────────────────────────── TRANSACCIONES ──────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ TRANSACCIONES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 app.post('/api/cuentas/:id/transacciones', async (req, res) => {
   const { titulo, monto, tipo, comentario, grupoId, fecha, orden } = req.body;
@@ -170,7 +170,7 @@ app.patch('/api/transacciones/:id/activo', async (req, res) => {
   res.json(transaccion);
 });
 
-// ────────────────────────────── NOTAS ──────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ NOTAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 app.get('/api/notas', async (req, res) => {
   const notas = await prisma.nota.findMany({ orderBy: { createdAt: 'desc' } });
@@ -197,7 +197,7 @@ app.delete('/api/notas/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// ────────────────────────────── PAGOS MENSUALES ──────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ PAGOS MENSUALES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 app.get('/api/pagos-mensuales', async (req, res) => {
   const pagos = await prisma.pagoMensual.findMany({
@@ -244,7 +244,7 @@ app.delete('/api/pagos-mensuales/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// Pagar un pago mensual → crea transacción egreso y actualiza ultimoPago
+// Pagar un pago mensual â†’ crea transacciÃ³n egreso y actualiza ultimoPago
 app.post('/api/pagos-mensuales/:id/pagar', async (req, res) => {
   try {
     const pago = await prisma.pagoMensual.findUnique({ where: { id: parseInt(req.params.id) } });
@@ -264,7 +264,7 @@ app.post('/api/pagos-mensuales/:id/pagar', async (req, res) => {
           titulo: `[Pago Mensual] ${pago.nombre} - ${mesNombre} ${anio}`,
           monto: pago.monto,
           tipo: 'egreso',
-          comentario: pago.comentario || `Pago mensual - ${mesNombre} ${anio} (día ${pago.diaPago})`,
+          comentario: pago.comentario || `Pago mensual - ${mesNombre} ${anio} (dÃ­a ${pago.diaPago})`,
           cuentaId: cuentaId,
           grupoId: pago.grupoId,
           fecha: ahora
@@ -282,13 +282,13 @@ app.post('/api/pagos-mensuales/:id/pagar', async (req, res) => {
   }
 });
 
-// ────────────────────────────── EXPORT EXCEL (Premium Report) ──────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ EXPORT EXCEL (Premium Report) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 
 function barraIndicador(pct: number, chars = 18): string {
   const llenos = Math.round((pct / 100) * chars);
-  return '█'.repeat(llenos) + '░'.repeat(chars - llenos);
+  return 'â–ˆ'.repeat(llenos) + 'â–‘'.repeat(chars - llenos);
 }
 
 function bordeFino(color = 'BDC3C7'): Partial<ExcelJS.Borders> {
@@ -338,7 +338,7 @@ app.get('/api/export/excel', async (req, res) => {
       const buildColorMap = (txs: any[]) => {
         const map: Record<string, [string, string]> = {};
         txs.forEach((t: any) => {
-          const cat = t.grupo?.nombre || 'Sin categoría';
+          const cat = t.grupo?.nombre || 'Sin categorÃ­a';
           if (!map[cat] && t.grupo?.color) {
             const hex = t.grupo.color.replace('#', '');
             map[cat] = [hex, hex + '30'];
@@ -353,7 +353,7 @@ app.get('/api/export/excel', async (req, res) => {
       const groupByCategory = (txs: any[]) => {
         const groups: Record<string, any[]> = {};
         txs.forEach((t: any) => {
-          const cat = t.grupo?.nombre || 'Sin categoría';
+          const cat = t.grupo?.nombre || 'Sin categorÃ­a';
           if (!groups[cat]) groups[cat] = [];
           groups[cat].push(t);
         });
@@ -375,10 +375,10 @@ app.get('/api/export/excel', async (req, res) => {
 
       let row = 1;
 
-      // ── TITLE ──
+      // â”€â”€ TITLE â”€â”€
       ws.mergeCells(`A${row}:O${row}`);
       const titleCell = ws.getCell(`A${row}`);
-      titleCell.value = `REPORTE FINANCIERO – ${cuenta.nombre.toUpperCase()}`;
+      titleCell.value = `REPORTE FINANCIERO â€“ ${cuenta.nombre.toUpperCase()}`;
       titleCell.font = { name: 'Arial', bold: true, size: 14, color: { argb: 'FFFFFF' } };
       titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1B2631' } };
       titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -387,7 +387,7 @@ app.get('/api/export/excel', async (req, res) => {
 
       ws.mergeCells(`A${row}:O${row}`);
       const subCell = ws.getCell(`A${row}`);
-      subCell.value = 'Ingresos y Egresos con detalle completo por categoría';
+      subCell.value = 'Ingresos y Egresos con detalle completo por categorÃ­a';
       subCell.font = { name: 'Arial', italic: true, size: 9, color: { argb: 'FFFFFF' } };
       subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2E4057' } };
       subCell.alignment = { horizontal: 'center' };
@@ -395,24 +395,24 @@ app.get('/api/export/excel', async (req, res) => {
       row++;
       ws.getRow(row).height = 8; row++;
 
-      // ── SECTION HEADERS ──
+      // â”€â”€ SECTION HEADERS â”€â”€
       ws.mergeCells(`A${row}:G${row}`);
       const egrHeader = ws.getCell(`A${row}`);
-      egrHeader.value = '  📤  EGRESOS – RESUMEN';
+      egrHeader.value = '  ðŸ“¤  EGRESOS â€“ RESUMEN';
       egrHeader.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFF' } };
       egrHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '922B21' } };
       egrHeader.alignment = { horizontal: 'left', vertical: 'middle' };
 
       ws.mergeCells(`I${row}:O${row}`);
       const ingHeader = ws.getCell(`I${row}`);
-      ingHeader.value = '  📥  INGRESOS – RESUMEN';
+      ingHeader.value = '  ðŸ“¥  INGRESOS â€“ RESUMEN';
       ingHeader.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFF' } };
       ingHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1D8348' } };
       ingHeader.alignment = { horizontal: 'left', vertical: 'middle' };
       ws.getRow(row).height = 24; row++;
 
-      // ── SUMMARY HEADERS ──
-      const summaryHeaders = ['Categoría', 'Total (S/)', 'N° Mov.', '% Total', 'Indicador'];
+      // â”€â”€ SUMMARY HEADERS â”€â”€
+      const summaryHeaders = ['CategorÃ­a', 'Total (S/)', 'NÂ° Mov.', '% Total', 'Indicador'];
       const writeHeaders = (startCol: number) => {
         summaryHeaders.forEach((h, i) => {
           const c = ws.getCell(row, startCol + i);
@@ -426,7 +426,7 @@ app.get('/api/export/excel', async (req, res) => {
       writeHeaders(1); writeHeaders(9);
       ws.getRow(row).height = 20; row++;
 
-      // ── SUMMARY ROWS ──
+      // â”€â”€ SUMMARY ROWS â”€â”€
       const writeSummaryRows = (cats: [string, any[]][], total: number, startCol: number, colorMap: Record<string, [string, string]>) => {
         let r = row;
         cats.forEach(([cat, txs]) => {
@@ -455,9 +455,9 @@ app.get('/api/export/excel', async (req, res) => {
       const ingEnd = writeSummaryRows(ingCats, totalIng, 9, ingColorMap);
       const totalRow = Math.max(egrEnd, ingEnd);
 
-      // ── TOTAL ROW ──
+      // â”€â”€ TOTAL ROW â”€â”€
       const writeTotalRow = (r: number, startCol: number, total: number, count: number, bgColor: string) => {
-        const vals = ['TOTAL GENERAL', total, count, 1.0, '█'.repeat(18)];
+        const vals = ['TOTAL GENERAL', total, count, 1.0, 'â–ˆ'.repeat(18)];
         vals.forEach((v, i) => {
           const c = ws.getCell(r, startCol + i);
           c.value = v;
@@ -476,10 +476,10 @@ app.get('/api/export/excel', async (req, res) => {
       writeTotalRow(row, 9, totalIng, ingresos.length, '1D8348');
       row += 2;
 
-      // ── BALANCE ──
+      // â”€â”€ BALANCE â”€â”€
       ws.mergeCells(`A${row}:O${row}`);
       const balTitle = ws.getCell(`A${row}`);
-      balTitle.value = '  💰  BALANCE FINAL DE LA CUENTA';
+      balTitle.value = '  ðŸ’°  BALANCE FINAL DE LA CUENTA';
       balTitle.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFF' } };
       balTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1B2631' } };
       balTitle.alignment = { horizontal: 'left', vertical: 'middle' };
@@ -496,8 +496,8 @@ app.get('/api/export/excel', async (req, res) => {
       ws.getRow(row).height = 20; row++;
 
       const balItems = [
-        { label: '📥  Total Ingresos', val: totalIng, dark: '1D8348', light: 'D5F5E3' },
-        { label: '📤  Total Egresos', val: totalEgr, dark: '7B241C', light: 'FADBD8' },
+        { label: 'ðŸ“¥  Total Ingresos', val: totalIng, dark: '1D8348', light: 'D5F5E3' },
+        { label: 'ðŸ“¤  Total Egresos', val: totalEgr, dark: '7B241C', light: 'FADBD8' },
       ];
       balItems.forEach(item => {
         const c1 = ws.getCell(row, 1); c1.value = item.label;
@@ -514,7 +514,7 @@ app.get('/api/export/excel', async (req, res) => {
       });
 
       const colorNeto = neto >= 0 ? '1D6A27' : '922B21';
-      const cn1 = ws.getCell(row, 1); cn1.value = '✅  MONTO NETO (Ingresos − Egresos)';
+      const cn1 = ws.getCell(row, 1); cn1.value = 'âœ…  MONTO NETO (Ingresos âˆ’ Egresos)';
       cn1.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFF' } };
       cn1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorNeto } };
       cn1.alignment = { horizontal: 'left', vertical: 'middle' };
@@ -526,10 +526,10 @@ app.get('/api/export/excel', async (req, res) => {
       cn2.border = bordeMedio(colorNeto);
       ws.getRow(row).height = 26; row += 2;
 
-      // ── DETAIL SECTION ──
+      // â”€â”€ DETAIL SECTION â”€â”€
       ws.mergeCells(`A${row}:O${row}`);
       const detTitle = ws.getCell(`A${row}`);
-      detTitle.value = '  📋  DETALLE COMPLETO POR CATEGORÍA';
+      detTitle.value = '  ðŸ“‹  DETALLE COMPLETO POR CATEGORÃA';
       detTitle.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFF' } };
       detTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2E4057' } };
       detTitle.alignment = { horizontal: 'left', vertical: 'middle' };
@@ -537,11 +537,11 @@ app.get('/api/export/excel', async (req, res) => {
 
       ws.mergeCells(`A${row}:G${row}`);
       const egrLabel = ws.getCell(`A${row}`);
-      egrLabel.value = '  📤  EGRESOS'; egrLabel.font = { name: 'Arial', bold: true, size: 10, color: { argb: 'FFFFFF' } };
+      egrLabel.value = '  ðŸ“¤  EGRESOS'; egrLabel.font = { name: 'Arial', bold: true, size: 10, color: { argb: 'FFFFFF' } };
       egrLabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '7B241C' } };
       ws.mergeCells(`I${row}:O${row}`);
       const ingLabel = ws.getCell(`I${row}`);
-      ingLabel.value = '  📥  INGRESOS'; ingLabel.font = { name: 'Arial', bold: true, size: 10, color: { argb: 'FFFFFF' } };
+      ingLabel.value = '  ðŸ“¥  INGRESOS'; ingLabel.font = { name: 'Arial', bold: true, size: 10, color: { argb: 'FFFFFF' } };
       ingLabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1D8348' } };
       ws.getRow(row).height = 20; row++;
 
@@ -614,20 +614,20 @@ app.get('/api/export/excel', async (req, res) => {
       const egrDetailEnd = writeDetailBlock(egrCats, totalEgr, 1, egrColorMap, row);
       const ingDetailEnd = writeDetailBlock(ingCats, totalIng, 9, ingColorMap, row);
 
-      // ── PAGOS MENSUALES SECTION ──
+      // â”€â”€ PAGOS MENSUALES SECTION â”€â”€
       const pagos = (cuenta as any).pagosMensuales || [];
       if (pagos.length > 0) {
         let pmRow = Math.max(egrDetailEnd, ingDetailEnd) + 2;
 
         ws.mergeCells(`A${pmRow}:O${pmRow}`);
         const pmTitle = ws.getCell(`A${pmRow}`);
-        pmTitle.value = '  🔄  PAGOS MENSUALES PROGRAMADOS';
+        pmTitle.value = '  ðŸ”„  PAGOS MENSUALES PROGRAMADOS';
         pmTitle.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFF' } };
         pmTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '7D3C98' } };
         pmTitle.alignment = { horizontal: 'left', vertical: 'middle' };
         ws.getRow(pmRow).height = 24; pmRow++;
 
-        const pmHeaders = ['Pago', 'Monto (S/)', 'Categoría', 'Día del Mes', 'Último Pago', 'Estado'];
+        const pmHeaders = ['Pago', 'Monto (S/)', 'CategorÃ­a', 'DÃ­a del Mes', 'Ãšltimo Pago', 'Estado'];
         pmHeaders.forEach((h, i) => {
           const c = ws.getCell(pmRow, 1 + i);
           c.value = h;
@@ -644,8 +644,8 @@ app.get('/api/export/excel', async (req, res) => {
           totalPagos += p.monto;
           const bgColor = idx % 2 === 0 ? 'F5EEF8' : 'FFFFFF';
           const ultimoPago = p.ultimoPago ? new Date(p.ultimoPago).toLocaleDateString() : 'Nunca';
-          const catName = p.grupoId ? (grupos.find((g: any) => g.id === p.grupoId)?.nombre || 'Sin categoría') : 'Sin categoría';
-          const vals = [p.nombre, p.monto, catName, `Día ${p.diaPago}`, ultimoPago, p.activo ? 'Activo' : 'Inactivo'];
+          const catName = p.grupoId ? (grupos.find((g: any) => g.id === p.grupoId)?.nombre || 'Sin categorÃ­a') : 'Sin categorÃ­a';
+          const vals = [p.nombre, p.monto, catName, `DÃ­a ${p.diaPago}`, ultimoPago, p.activo ? 'Activo' : 'Inactivo'];
           vals.forEach((v, i) => {
             const c = ws.getCell(pmRow, 1 + i);
             c.value = v;
@@ -682,7 +682,7 @@ app.get('/api/export/excel', async (req, res) => {
   }
 });
 
-// ────────────────────────────── NOTAS UPAO ──────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ NOTAS UPAO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 app.get('/api/notas-upao', async (req, res) => {
   try {
@@ -695,179 +695,12 @@ app.get('/api/notas-upao', async (req, res) => {
   }
 });
 
-// El scraper de Playwright nunca funciona desde el VPS (IP alemana bloqueada por UPAO).
-// La única forma de obtener notas es via bookmarklet en el celular del alumno (IP peruana).
-app.post('/api/notas-upao/refresh', (_req, res) => {
-  res.status(500).json({
-    error: 'Los servidores de UPAO solo aceptan conexiones desde Perú.',
-    requires_browser_sync: true,
-  });
-});
-
-// Script JS que el bookmarklet inyecta en la página de SSB (corre en el contexto del browser del alumno)
-app.get('/api/notas-upao/capture-script.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0]?.trim() || 'https';
-  const host  = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || 'sistema-anderson.duckdns.org';
-  const BACKEND  = `${proto}://${host}`;
-  const USER_ID  = (req.query.user as string) || process.env.UPAO_USER || 'default';
-  const CURSO_NOMBRES = {
-    'ISIA 107': 'Infraestructura como Código',
-    'ISIA 118': 'Gobierno de Datos',
-    'ISIA 127': 'Aplic. Móviles para Negocios',
-    'ISIA 104': 'Cómputo Distribuido y Paralelo',
-    'ICSI 676': 'Métodos Cuantitativos para Negocios',
-    'ISIA 117': 'Proyecto de Investigación',
-  };
-  res.send(`(async function upaoCapture() {
-  if (!location.hostname.includes('ssb.upao.edu.pe')) {
-    alert('Este script debe ejecutarse en ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades');
-    return;
-  }
-  const BACKEND = ${JSON.stringify(BACKEND)};
-  const USER    = ${JSON.stringify(USER_ID)};
-  const CURSO_NOMBRES = ${JSON.stringify(CURSO_NOMBRES)};
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const waitFor = (sel, timeout=12000) => new Promise((res,rej) => {
-    const t = Date.now();
-    const check = () => {
-      const el = document.querySelector(sel);
-      if (el) return res(el);
-      if (Date.now()-t > timeout) return rej(new Error('Timeout: '+sel));
-      setTimeout(check, 300);
-    };
-    check();
-  });
-  let overlay = document.getElementById('__upao_cap');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = '__upao_cap';
-    overlay.style.cssText = 'position:fixed;top:16px;right:16px;z-index:2147483647;background:rgba(10,10,20,0.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:#fff;padding:16px 18px;border-radius:18px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;max-width:270px;box-shadow:0 8px 32px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.12);min-width:200px';
-    document.body.appendChild(overlay);
-  }
-  const log = msg => {
-    overlay.innerHTML = '<div style="font-weight:800;font-size:11px;letter-spacing:.05em;opacity:.5;margin-bottom:6px;text-transform:uppercase">Gordito Sync</div><div style="line-height:1.55;opacity:.9">'+msg+'</div>';
-  };
-  try {
-    log('Iniciando captura…');
-    const openDD = id => {
-      const btn = document.querySelector(id+'-button');
-      if (btn) { btn.click(); return; }
-      const s = document.querySelector('#s2id_'+id.replace('#','')+' .select2-choice');
-      if (s) { s.click(); }
-    };
-    const termEl = document.querySelector('#term-readonly');
-    if (termEl && !termEl.value) {
-      log('Seleccionando periodo…');
-      termEl.click();
-      await sleep(800);
-      const to = document.querySelectorAll('.select2-results li');
-      for (const o of to) {
-        if (!o.textContent.includes('All Terms') && o.textContent.trim()) { o.click(); break; }
-      }
-      await sleep(800);
-    }
-    const lvlEl = document.querySelector('#level-readonly');
-    if (lvlEl && !lvlEl.value) {
-      log('Seleccionando nivel…');
-      try {
-        lvlEl.click(); await sleep(800);
-        const lo = document.querySelectorAll('.select2-results li');
-        for (const o of lo) { if (o.textContent.trim()) { o.click(); break; } }
-        await sleep(800);
-      } catch(e) {}
-    }
-    log('Esperando cursos…');
-    try { await waitFor('#courseWorkContainer', 15000); } catch(e) {}
-    await sleep(1000);
-    const nombresMap = {};
-    document.querySelectorAll('table tbody tr, [xe-section] tr').forEach(row => {
-      const cells = {};
-      row.querySelectorAll('[xe-field]').forEach(td => {
-        cells[td.getAttribute('xe-field')] = td.textContent.trim().replace(/\\s+/g,' ').replace(/press enter key.*/i,'').trim();
-      });
-      const crn = cells.courseReferenceNumber||cells.crn||'';
-      const title = cells.courseTitle||cells.title||'';
-      const code = (cells.subject&&cells.courseNumber) ? cells.subject+' '+cells.courseNumber : '';
-      if (title && title.toLowerCase()!=='course title') {
-        if (code) nombresMap[code] = title;
-        if (crn)  nombresMap[crn]  = title;
-      }
-    });
-    log('Abriendo Components…');
-    const compLink = [...document.querySelectorAll('a,button')].find(el => /^components$/i.test(el.textContent.trim()));
-    if (!compLink) throw new Error('No se encontró el enlace "Components"');
-    compLink.click();
-    await sleep(2000);
-    log('Obteniendo cursos…');
-    openDD('courses');
-    await sleep(1500);
-    const courseOptions = [...document.querySelectorAll('.select2-results li')]
-      .map(o => o.textContent.trim())
-      .filter(t => t && !/seleccionar|searching/i.test(t));
-    document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true}));
-    await sleep(300);
-    if (!courseOptions.length) throw new Error('No se encontraron cursos');
-    const allCourses = [];
-    for (let i=0; i<courseOptions.length; i++) {
-      const ct = courseOptions[i];
-      log('('+(i+1)+'/'+courseOptions.length+') '+ct.split('|')[0].trim()+'…');
-      openDD('courses');
-      await sleep(800);
-      const opts = [...document.querySelectorAll('.select2-results li')];
-      const found = opts.find(o => o.textContent.trim()===ct) || opts.find(o => o.textContent.includes(ct.split('|')[0].trim()));
-      if (found) found.click();
-      await sleep(1000);
-      await new Promise(res => { const t=Date.now(); const c=()=>{ if(!document.querySelector('.loading,.spinner,[aria-busy="true"]')||Date.now()-t>8000) return res(); setTimeout(c,300); }; setTimeout(c,500); });
-      await sleep(400);
-      document.querySelectorAll('.nested-arrow.nested-arrow-closed').forEach(a => a.click());
-      await sleep(300);
-      const cl = s => s.trim().replace(/\\s+/g,' ');
-      const hEl = document.querySelector('[xe-field="creditHours"]');
-      const hRaw = hEl ? cl(hEl.textContent) : '';
-      const hM = hRaw.match(/([\\d.]+)/);
-      const horas = hM ? hM[1] : hRaw;
-      const calNoDisp = document.body.innerText.includes('no disponible');
-      const componentes = [];
-      document.querySelectorAll('table tbody tr').forEach(row => {
-        const cells = {};
-        row.querySelectorAll('[xe-field]').forEach(td => { cells[td.getAttribute('xe-field')]=cl(td.textContent); });
-        if (cells.name) { cells.nested = !!row.querySelector('.nested-arrow'); if(cells.mustPass==='Yes')cells.mustPass='Sí'; componentes.push(cells); }
-      });
-      const parts = ct.split('|');
-      const codePart = parts[0].trim();
-      const nrc = parts[1]?.trim()||'';
-      const sp = codePart.split(' - ',2);
-      const codigo = sp[0].trim();
-      const nameDD = (sp[1]||'').replace(/press enter key.*/i,'').replace(/\\s+/g,' ').trim();
-      let nameComp = '';
-      for (const c of componentes) { const r=(c.courseTitle||'').trim(); if(r&&r.toLowerCase()!=='course title'){nameComp=r.replace(/press enter key.*/i,'').replace(/\\s+/g,' ').trim();break;} }
-      const nombre = CURSO_NOMBRES[codigo]||nombresMap[codigo]||nombresMap[nrc]||nameComp||nameDD||codigo;
-      allCourses.push({nrc:ct, codigo, nrc_num:nrc, nombre, horas, cal_disponible:!calNoDisp, componentes});
-    }
-    log('Enviando '+allCourses.length+' cursos…');
-    await fetch(BACKEND+'/api/notas-upao/bookmarklet?user='+encodeURIComponent(USER), {
-      method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(allCourses)
-    });
-    overlay.style.background = 'rgba(16,185,129,0.92)';
-    log('✅ ¡Notas sincronizadas! Vuelve a Gordito y presiona Verificar.');
-    setTimeout(()=>overlay.remove(), 6000);
-  } catch(e) {
-    overlay.style.background = 'rgba(220,38,38,0.92)';
-    log('❌ '+e.message);
-    console.error('[upaoCapture]', e);
-    setTimeout(()=>overlay.remove(), 9000);
-  }
-})();`);
-});
-
 // Recibe notas del bookmarklet (no-cors simple request: text/plain)
 app.post('/api/notas-upao/bookmarklet', async (req, res) => {
   try {
     const user = (req.query.user as string) || process.env.UPAO_USER || 'default';
     const raw = req.body;
-    if (!raw) return res.status(400).json({ ok: false, error: 'Body vacío' });
+    if (!raw) return res.status(400).json({ ok: false, error: 'Body vacÃ­o' });
     const cursos = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));
     const arr = Array.isArray(cursos) ? cursos : (cursos.cursos || []);
     await prisma.notasUpao.upsert({
@@ -883,5 +716,5 @@ app.post('/api/notas-upao/bookmarklet', async (req, res) => {
 
 const PORT = 3001;
 app.listen(PORT, () => {
-  console.log(`✅ Servidor en Puerto ${PORT}`);
+  console.log(`âœ… Servidor en Puerto ${PORT}`);
 });

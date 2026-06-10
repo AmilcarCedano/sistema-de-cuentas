@@ -1,0 +1,8 @@
+{
+  "name": "sync-upao",
+  "version": "1.0.0",
+  "description": "Sincroniza notas UPAO al VPS Gordito",
+  "dependencies": {
+    "playwright": "^1.44.0"
+  }
+}
