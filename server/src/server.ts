@@ -2,36 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
-import { spawn } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import net from 'net';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const prisma = new PrismaClient();
 
-// Ruta al script one-shot del scraper (muere completamente al terminar)
-// Docker: /app/src/../scraper/  ─→  /app/scraper/
-// Local:  server/src/../../scraper/
-const SCRAPER_SCRIPT = process.env.SCRAPER_SCRIPT
-  || path.resolve(__dirname, '../scraper/scrape_once.py');
-const PYTHON_CMD = process.env.PYTHON_CMD
-  || (process.platform === 'win32' ? 'python' : 'python3');
-
-// Verifica en ~4s si el servidor OIDC de UPAO es alcanzable desde esta IP
-function checkUPAOReachable(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const sock = new net.Socket();
-    sock.setTimeout(4000);
-    sock.once('connect', () => { sock.destroy(); resolve(true); });
-    sock.once('timeout', () => { sock.destroy(); resolve(false); });
-    sock.once('error',   () => resolve(false));
-    sock.connect(410, '200.62.147.92'); // upaosso.upao.edu.pe
-  });
-}
 
 app.use(cors());
 app.use(express.json());
@@ -721,85 +695,13 @@ app.get('/api/notas-upao', async (req, res) => {
   }
 });
 
-app.post('/api/notas-upao/refresh', async (req, res) => {
-  try {
-    const { username, password } = req.body || {};
-    const user = username || process.env.UPAO_USER || 'default';
-
-    // Check rápido (~4s): si UPAO no es alcanzable desde este servidor,
-    // retorna de inmediato para que el frontend muestre la guía del bookmarklet
-    const reachable = await checkUPAOReachable();
-    if (!reachable) {
-      return res.status(500).json({
-        error: 'Los servidores de UPAO solo aceptan conexiones desde Perú.',
-        requires_browser_sync: true,
-      });
-    }
-
-    // Variables de entorno para el proceso hijo
-    const env: NodeJS.ProcessEnv = { ...process.env };
-    if (username) env.UPAO_USER = username;
-    if (password) env.UPAO_PASS = password;
-
-    console.log(`[scraper] Iniciando ${PYTHON_CMD} ${SCRAPER_SCRIPT}`);
-
-    let stdout = '';
-    let stderr = '';
-
-    const proc = spawn(PYTHON_CMD, [SCRAPER_SCRIPT], {
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr?.on('data', (d: Buffer) => {
-      stderr += d.toString();
-      process.stderr.write(`[scraper] ${d}`);
-    });
-
-    const outcome = await new Promise<{ ok: boolean; cursos?: any[]; error?: string; requires_browser_sync?: boolean }>((resolve) => {
-      const timer = setTimeout(() => {
-        proc.kill('SIGKILL');
-        resolve({ ok: false, error: 'Los servidores de UPAO solo aceptan conexiones desde Perú.', requires_browser_sync: true });
-      }, 30_000);
-
-      proc.on('error', (e) => {
-        clearTimeout(timer);
-        resolve({ ok: false, error: `No se pudo iniciar Python: ${e.message}` });
-      });
-
-      proc.on('close', (code) => {
-        clearTimeout(timer);
-        console.log(`[scraper] Proceso terminó (code ${code})`);
-        if (code !== 0) {
-          resolve({ ok: false, error: stderr.trim() || `Scraper falló (código ${code})` });
-          return;
-        }
-        try {
-          resolve({ ok: true, cursos: JSON.parse(stdout.trim()) });
-        } catch {
-          resolve({ ok: false, error: 'Error parseando resultado del scraper' });
-        }
-      });
-    });
-
-    if (!outcome.ok || !outcome.cursos) {
-      return res.status(500).json({
-        error: outcome.error || 'Error desconocido',
-        requires_browser_sync: outcome.requires_browser_sync || false,
-      });
-    }
-
-    const saved = await prisma.notasUpao.upsert({
-      where:  { id: user },
-      update: { cursos: outcome.cursos as any },
-      create: { id: user, cursos: outcome.cursos as any },
-    });
-
-    res.json({ ok: true, cursos: saved.cursos, updatedAt: saved.updatedAt });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message || 'Error al actualizar notas' });
-  }
+// El scraper de Playwright nunca funciona desde el VPS (IP alemana bloqueada por UPAO).
+// La única forma de obtener notas es via bookmarklet en el celular del alumno (IP peruana).
+app.post('/api/notas-upao/refresh', (_req, res) => {
+  res.status(500).json({
+    error: 'Los servidores de UPAO solo aceptan conexiones desde Perú.',
+    requires_browser_sync: true,
+  });
 });
 
 // Script JS que el bookmarklet inyecta en la página de SSB (corre en el contexto del browser del alumno)
