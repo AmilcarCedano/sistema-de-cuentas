@@ -7,7 +7,7 @@ import {
   Eye, EyeOff, ShieldCheck, Target, BarChart3, Calculator, ArrowLeftRight, Filter, AlertCircle, CheckCircle,
   GripVertical, LayoutGrid, ArrowDownAZ, ArrowDown01, RefreshCw, Palette,
   Lock, Unlock, Bell, Repeat, GraduationCap,
-  ExternalLink, Copy, Check
+  ExternalLink, Copy, Check, Bookmark
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 // API URL: uses proxy in dev and env in prod
@@ -1730,13 +1730,19 @@ const App = () => {
                 <div className="flex items-start gap-2.5">
                   <span className="w-5 h-5 rounded-full bg-white/8 flex items-center justify-center text-[9px] font-black text-white/50 flex-shrink-0 mt-0.5">1</span>
                   <div className="flex-1">
-                    <p className="text-[10px] text-white/60 mb-1.5">Guarda este bookmarklet en Safari (toca Compartir → Añadir a Marcadores)</p>
-                    <button onClick={copyBM}
-                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black transition-all active:scale-95"
-                      style={{background: bookmarkletCopied ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.07)', border: bookmarkletCopied ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(255,255,255,0.1)'}}>
+                    <p className="text-[10px] text-white/60 mb-1.5">Mantén presionado este link → <strong className="text-white/80">Añadir a Marcadores</strong></p>
+                    <a href={bmCode}
+                      onClick={e => e.preventDefault()}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black transition-all active:scale-95 select-none"
+                      style={{background:'rgba(251,191,36,0.15)',border:'1px solid rgba(251,191,36,0.3)',textDecoration:'none',display:'flex',WebkitUserSelect:'none',userSelect:'none'}}>
+                      <Bookmark size={11} className="text-amber-400"/>
+                      <span className="text-amber-300">Sync UPAO — mantén presionado</span>
+                    </a>
+                    <button onClick={copyBM} className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[9px] font-bold mt-1.5 transition-all active:scale-95"
+                      style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)'}}>
                       {bookmarkletCopied
-                        ? <><Check size={11} className="text-emerald-400"/><span className="text-emerald-400">¡Copiado!</span></>
-                        : <><Copy size={11} className="text-white/50"/><span className="text-white/60">Copiar código del bookmarklet</span></>
+                        ? <><Check size={10} className="text-emerald-400"/><span className="text-emerald-400">¡Copiado!</span></>
+                        : <><Copy size={10} className="text-white/30"/><span className="text-white/30">o copiar código (alternativa)</span></>
                       }
                     </button>
                   </div>
