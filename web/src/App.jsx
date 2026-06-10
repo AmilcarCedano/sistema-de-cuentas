@@ -1673,14 +1673,14 @@ const App = () => {
           </div>
         )}
 
-        {upaoError && !upaoNeedsBrowserSync && (
+        {upaoError && !upaoNeedsBrowserSync && !/upao|per[uú]/i.test(upaoError) && (
           <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3">
             <AlertCircle size={15} className="text-red-400 flex-shrink-0 mt-0.5" />
             <p className="text-[11px] text-red-400 font-bold leading-relaxed">{upaoError}</p>
           </div>
         )}
 
-        {upaoNeedsBrowserSync && (() => {
+        {(upaoNeedsBrowserSync || /upao|per[uú]/i.test(upaoError || '')) && (() => {
           const activeProfile = upaoProfiles.find(p => p.id === activeProfileId)
           const userForBM = encodeURIComponent(activeProfile?.usuario || 'default')
           const bmCode = `javascript:(function(){var s=document.createElement('script');s.src='${window.location.origin}/api/notas-upao/capture-script.js?user=${userForBM}&t='+Date.now();document.head.appendChild(s);})();`
