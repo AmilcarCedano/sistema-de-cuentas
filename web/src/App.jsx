@@ -1486,9 +1486,6 @@ const App = () => {
             )}
           </div>
         </div>
-          </div>
-          )
-        })()}
 
         {notasUpao.cursos.length === 0 && (
           <div className="py-12 rounded-[28px] text-center px-6" style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)' }}>
