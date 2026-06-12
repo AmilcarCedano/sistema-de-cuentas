@@ -8,12 +8,19 @@
   * { margin:0; padding:0; box-sizing:border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
   body { background:#0c0e14; color:#fff; min-height:100vh; padding:16px; max-width:680px; margin:0 auto; }
   h1 { font-size:18px; letter-spacing:2px; text-transform:uppercase; display:flex; align-items:center; gap:10px; }
-  .sub { font-size:11px; color:#aab3cc; margin:4px 0 18px; }
+  .sub { font-size:11px; color:#aab3cc; margin:4px 0 14px; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+  .topbar label { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:#aab3cc; font-weight:700; }
+  select { background:#1a1f2e; color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:12px; padding:8px 12px; font-size:12px; font-weight:700; outline:none; cursor:pointer; }
   .card { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:24px; padding:20px; margin-bottom:14px; }
   .card h2 { font-size:11px; text-transform:uppercase; letter-spacing:2px; color:#aab3cc; margin-bottom:12px; }
   .big { font-size:34px; font-weight:900; line-height:1; }
+  .mid { font-size:22px; font-weight:900; line-height:1; }
   .unit { font-size:14px; color:#aab3cc; font-weight:600; }
   .row { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .mini { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:16px; padding:14px; }
+  .mini p { font-size:9px; text-transform:uppercase; letter-spacing:1px; color:#aab3cc; margin-bottom:6px; font-weight:700; }
   .bar { height:14px; background:rgba(255,255,255,0.08); border-radius:10px; overflow:hidden; margin:12px 0 8px; }
   .bar > div { height:100%; border-radius:10px; transition:width .8s ease, background .8s ease; }
   .meta { display:flex; justify-content:space-between; font-size:12px; color:#aab3cc; flex-wrap:wrap; gap:6px; }
@@ -36,6 +43,20 @@
 <body>
   <h1>🖥️ Mi Servidor</h1>
   <p class="sub">VPS Contabo · 213.199.58.162 · vista simple en español</p>
+
+  <div class="topbar">
+    <div>
+      <label>⏱️ Actualizar cada:</label>
+      <select id="intervalo">
+        <option value="3000">3 segundos</option>
+        <option value="10000">10 segundos</option>
+        <option value="30000">30 segundos</option>
+        <option value="60000">1 minuto</option>
+        <option value="300000">5 minutos</option>
+      </select>
+    </div>
+    <span class="sub" style="margin:0">Encendido desde hace: <b id="uptime" style="color:#10b981">—</b></span>
+  </div>
 
   <div class="card">
     <h2>💾 Almacenamiento (disco principal)</h2>
@@ -71,6 +92,20 @@
       <span class="unit">% de uso</span>
     </div>
     <div class="bar"><div id="cpu-bar" style="width:0%"></div></div>
+    <div class="meta">
+      <span>Carga del sistema (1 min): <b id="load1">—</b></span>
+      <span>Procesos activos: <b id="procs">—</b></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🌐 Red &nbsp;·&nbsp; 📀 Actividad del disco</h2>
+    <div class="grid2">
+      <div class="mini"><p>⬇️ Descarga (red)</p><span class="mid ok" id="net-in">—</span> <span class="unit">Mbps</span></div>
+      <div class="mini"><p>⬆️ Subida (red)</p><span class="mid" style="color:#3b82f6" id="net-out">—</span> <span class="unit">Mbps</span></div>
+      <div class="mini"><p>📖 Lectura disco</p><span class="mid ok" id="io-read">—</span> <span class="unit">MB/s</span></div>
+      <div class="mini"><p>✍️ Escritura disco</p><span class="mid warn" id="io-write">—</span> <span class="unit">MB/s</span></div>
+    </div>
   </div>
 
   <div class="card">
@@ -87,7 +122,7 @@
   </div>
 
   <a class="full" href="/v3/">Ver panel completo de Netdata (avanzado, en inglés) →</a>
-  <p class="upd">Se actualiza solo cada 3 segundos · <span id="last">—</span></p>
+  <p class="upd"><span id="last">—</span></p>
 
 <script>
 const API = '';
@@ -117,6 +152,14 @@ function setBar(id, pct) {
   el.className = colorPct(pct);
 }
 const f1 = n => (Math.round(n * 10) / 10).toLocaleString('es-PE');
+const txt = (id, v) => document.getElementById(id).textContent = v;
+
+function fmtUptime(seg) {
+  const d = Math.floor(seg / 86400), h = Math.floor((seg % 86400) / 3600), m = Math.floor((seg % 3600) / 60);
+  if (d > 0) return `${d} día${d !== 1 ? 's' : ''} y ${h} h`;
+  if (h > 0) return `${h} h ${m} min`;
+  return `${m} min`;
+}
 
 async function refrescar() {
   try {
@@ -124,33 +167,45 @@ async function refrescar() {
     const d = await dato('disk_space./');
     const dTotal = d.avail + d.used + (d['reserved for root'] || 0);
     const dPct = d.used / dTotal * 100;
-    document.getElementById('disk-libre').textContent = f1(d.avail);
-    document.getElementById('disk-total').textContent = f1(dTotal);
-    document.getElementById('disk-usado').textContent = f1(d.used);
-    document.getElementById('disk-pct').textContent = f1(dPct);
+    txt('disk-libre', f1(d.avail)); txt('disk-total', f1(dTotal));
+    txt('disk-usado', f1(d.used)); txt('disk-pct', f1(dPct));
     setBar('disk-bar', dPct);
     try {
       const b = await dato('disk_space./boot');
-      document.getElementById('boot-info').textContent = `${f1(b.avail)} GB libres`;
-    } catch { document.getElementById('boot-info').textContent = '—' }
+      txt('boot-info', `${f1(b.avail)} GB libres`);
+    } catch { txt('boot-info', '—') }
 
     // ── RAM (la API la da en MiB) ──
     const r = await dato('system.ram');
     const rTotal = (r.free + r.used + (r.cached || 0) + (r.buffers || 0)) / 1024;
     const rUsada = r.used / 1024;
-    const rDisp = rTotal - rUsada;
     const rPct = rUsada / rTotal * 100;
-    document.getElementById('ram-usada').textContent = f1(rUsada);
-    document.getElementById('ram-total').textContent = f1(rTotal);
-    document.getElementById('ram-disp').textContent = f1(rDisp);
-    document.getElementById('ram-pct').textContent = f1(rPct);
+    txt('ram-usada', f1(rUsada)); txt('ram-total', f1(rTotal));
+    txt('ram-disp', f1(rTotal - rUsada)); txt('ram-pct', f1(rPct));
     setBar('ram-bar', rPct);
 
     // ── CPU (suma de todo lo que no es idle) ──
     const c = await dato('system.cpu');
     const cPct = Object.entries(c).filter(([k]) => k !== 'idle').reduce((s, [, v]) => s + v, 0);
-    document.getElementById('cpu-pct').textContent = f1(cPct);
+    txt('cpu-pct', f1(cPct));
     setBar('cpu-bar', cPct);
+
+    // ── Carga, procesos y uptime ──
+    try { const l = await dato('system.load'); txt('load1', f1(l.load1)) } catch {}
+    try { const p = await dato('system.processes'); txt('procs', Math.round(Object.values(p).reduce((s, v) => s + v, 0))) } catch {}
+    try { const u = await dato('system.uptime'); txt('uptime', fmtUptime(Object.values(u)[0])) } catch {}
+
+    // ── Red (kilobits/s → Mbps) y disco I/O (KiB/s → MB/s) ──
+    try {
+      const n = await dato('system.net');
+      txt('net-in', f1(Math.abs(n.received || n.InOctets || 0) / 1000));
+      txt('net-out', f1(Math.abs(n.sent || n.OutOctets || 0) / 1000));
+    } catch {}
+    try {
+      const io = await dato('system.io');
+      txt('io-read', f1(Math.abs(io.in || io.reads || 0) / 1024));
+      txt('io-write', f1(Math.abs(io.out || io.writes || 0) / 1024));
+    } catch {}
 
     // ── Contenedores ──
     const filas = await Promise.all(CONTENEDORES.map(async ([id, nombre]) => {
@@ -173,13 +228,27 @@ async function refrescar() {
       ? '<div class="alert-box alert-ok">✅ Todo en orden — sin alertas activas</div>'
       : activas.map(a => `<div class="alert-box alert-bad">⚠️ ${a.name.replace(/_/g,' ')} — ${a.status} (${a.chart})</div>`).join('');
 
-    document.getElementById('last').textContent = 'última actualización: ' + new Date().toLocaleTimeString('es-PE');
+    txt('last', 'última actualización: ' + new Date().toLocaleTimeString('es-PE'));
   } catch (e) {
-    document.getElementById('last').textContent = '⚠️ sin conexión con Netdata — reintentando…';
+    txt('last', '⚠️ sin conexión con Netdata — reintentando…');
   }
 }
+
+// ── Intervalo de actualización configurable (se recuerda tu elección) ──
+const sel = document.getElementById('intervalo');
+let timer = null;
+function aplicarIntervalo(ms) {
+  if (timer) clearInterval(timer);
+  timer = setInterval(refrescar, ms);
+}
+sel.value = localStorage.getItem('panel_intervalo') || '3000';
+sel.addEventListener('change', () => {
+  localStorage.setItem('panel_intervalo', sel.value);
+  aplicarIntervalo(parseInt(sel.value));
+  refrescar();
+});
 refrescar();
-setInterval(refrescar, 3000);
+aplicarIntervalo(parseInt(sel.value));
 </script>
 </body>
 </html>
