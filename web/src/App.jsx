@@ -1480,7 +1480,7 @@ const App = () => {
               <GraduationCap size={18} className="text-accent flex-shrink-0" /> Notas UPAO
             </h2>
             {notasUpao.updatedAt && (
-              <p className="text-[9px] text-white/25 mt-0.5 truncate">
+              <p className="text-[11px] text-white/25 mt-0.5 truncate">
                 Actualizado: {new Date(notasUpao.updatedAt).toLocaleString()}
               </p>
             )}
@@ -1496,7 +1496,7 @@ const App = () => {
         )}
 
         {notasUpao.cursos.length > 0 && (
-          <p className="text-[9px] text-accent/50 font-bold px-1">
+          <p className="text-[11px] text-accent/50 font-bold px-1">
             Celdas azules punteadas = simulación de nota
           </p>
         )}
@@ -1526,48 +1526,48 @@ const App = () => {
                 style={{ background: 'rgba(255,255,255,0.045)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.09)', borderLeftWidth: '4px', borderLeftColor: borderColor, boxShadow: `0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.07)` }}>
 
                 {/* ── Cabecera de la card ── */}
-                <div className="p-4 cursor-pointer active:bg-white/[0.03] hover:bg-white/[0.02] transition-colors select-none"
+                <div className="p-5 cursor-pointer active:bg-white/[0.03] hover:bg-white/[0.02] transition-colors select-none"
                   onClick={() => setExpandedCourse(isOpen ? null : curso.codigo)}>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       {/* Código + badges */}
-                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-white/50 bg-white/[0.06] px-2 py-0.5 rounded-lg flex-shrink-0">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-white/50 bg-white/[0.06] px-2.5 py-1 rounded-lg flex-shrink-0">
                           {curso.codigo}
                         </span>
                         {!curso.cal_disponible && (
-                          <span className="text-[8px] font-black text-white/25 bg-white/5 px-1.5 py-0.5 rounded-md">Sin notas</span>
+                          <span className="text-[10px] font-black text-white/25 bg-white/5 px-2 py-0.5 rounded-md">Sin notas</span>
                         )}
                         {info.allGraded && (
-                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${info.passing ? 'text-[#10b981] bg-[#10b981]/10' : 'text-[#ef4444] bg-[#ef4444]/10'}`}>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${info.passing ? 'text-[#10b981] bg-[#10b981]/10' : 'text-[#ef4444] bg-[#ef4444]/10'}`}>
                             {info.passing ? '✓ Aprobado' : '✗ Desaprobado'}
                           </span>
                         )}
                       </div>
                       {/* Nombre del curso */}
-                      <p className="text-[13px] sm:text-[14px] font-black text-white/90 leading-snug line-clamp-2 tracking-tight">
+                      <p className="text-[15px] sm:text-[16px] font-black text-white/90 leading-snug line-clamp-2 tracking-tight">
                         {curso.nombre && curso.nombre !== curso.codigo ? curso.nombre : 'Sin nombre disponible'}
                       </p>
-                      <p className="text-[8px] text-white/20 mt-0.5 font-medium">{curso.horas} créditos</p>
+                      <p className="text-[10px] text-white/20 mt-1 font-medium">{curso.horas} créditos</p>
                     </div>
 
                     {/* Nota acumulada + flecha */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0 pl-2">
+                    <div className="flex items-center gap-2 flex-shrink-0 pl-2">
                       <div className="text-right">
                         {info.acum > 0 && !info.allGraded && (
-                          <p className="text-[7px] text-white/25 font-black uppercase tracking-widest mb-0.5">PROMEDIO</p>
+                          <p className="text-[9px] text-white/25 font-black uppercase tracking-widest mb-0.5">PROMEDIO</p>
                         )}
-                        <span className={`text-[28px] font-black tabular-nums leading-none ${info.acum > 0 ? gradeColor(info.acum) : 'text-white/10'}`}>
+                        <span className={`text-[34px] font-black tabular-nums leading-none ${info.acum > 0 ? gradeColor(info.acum) : 'text-white/10'}`}>
                           {info.acum > 0 ? info.acum.toFixed(1) : '—'}
                         </span>
                       </div>
-                      <ChevronDown size={14} className={`text-white/20 transition-transform duration-300 ml-0.5 ${isOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown size={16} className={`text-white/20 transition-transform duration-300 ml-0.5 ${isOpen ? 'rotate-180' : ''}`} />
                     </div>
                   </div>
 
                   {/* Mini barra de progreso de nota */}
                   {info.acum > 0 && (
-                    <div className="mt-3 h-[3px] bg-white/[0.07] rounded-full overflow-visible">
+                    <div className="mt-3.5 h-[4px] bg-white/[0.07] rounded-full overflow-visible">
                       <div className="h-full rounded-full transition-all duration-700"
                         style={{
                           width: `${Math.min(info.acum / 20 * 100, 100)}%`,
@@ -1581,17 +1581,17 @@ const App = () => {
 
                 {/* ── Celdas de notas ── */}
                 {curso.cal_disponible && (
-                  <div className="px-4 pb-4" onClick={e => e.stopPropagation()}>
-                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                  <div className="px-5 pb-5" onClick={e => e.stopPropagation()}>
+                    <div className="grid grid-cols-4 gap-2">
                       {PARTS.map(([kw, w]) => {
                         const { val, real } = effScore(comps, kw, curso.codigo)
                         const simKey = `${curso.codigo}-${kw}`
                         const isEmpty = !real
                         return (
-                          <div key={kw} className={`rounded-xl p-2 text-center transition-all ${
+                          <div key={kw} className={`rounded-xl p-3 text-center transition-all ${
                             isEmpty ? 'border border-dashed border-accent/25 bg-accent/5' : 'bg-white/[0.04]'
                           }`}>
-                            <p className="text-[8px] font-black uppercase tracking-widest text-white/30 mb-1">{kw}</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1.5">{kw}</p>
                             {isEmpty ? (
                               <input
                                 type="number" min="1" max="20" step="0.1"
@@ -1609,13 +1609,13 @@ const App = () => {
                                   if (isNaN(n) || e.target.value === '') { setSimGrades(p => ({ ...p, [simKey]: '' })); return }
                                   setSimGrades(p => ({ ...p, [simKey]: String(Math.min(20, Math.max(1, Math.round(n * 10) / 10))) }))
                                 }}
-                                className="w-full bg-transparent text-center text-[14px] sm:text-[15px] font-black text-accent outline-none placeholder-white/20
+                                className="w-full bg-transparent text-center text-[17px] sm:text-[18px] font-black text-accent outline-none placeholder-white/20
                                   [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             ) : (
-                              <p className={`text-[14px] sm:text-[15px] font-black leading-none ${gradeColor(val)}`}>{val}</p>
+                              <p className={`text-[17px] sm:text-[18px] font-black leading-none ${gradeColor(val)}`}>{val}</p>
                             )}
-                            <p className="text-[7px] text-white/15 mt-1">{w}%</p>
+                            <p className="text-[9px] text-white/15 mt-1.5">{w}%</p>
                           </div>
                         )
                       })}
@@ -1626,39 +1626,39 @@ const App = () => {
                       const hasSim = info.missing.some(kw => simGrades[`${curso.codigo}-${kw}`])
                       const projLabel = hasSim ? `Proyección: ${info.acum.toFixed(2)}` : null
                       return (
-                        <div className={`mt-2 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 ${
+                        <div className={`mt-2.5 rounded-xl px-3.5 py-3 flex items-center justify-between gap-2 ${
                           info.impossible ? 'bg-red-500/10 border border-red-500/20' :
                           info.passing    ? 'bg-[#10b981]/8 border border-[#10b981]/20' :
                                            'bg-white/[0.03] border border-white/5'
                         }`}>
                           <div className="flex-1 min-w-0">
                             {info.impossible ? (
-                              <p className="text-[11px] font-black text-red-400">😔 Ya no es posible aprobar</p>
+                              <p className="text-[13px] font-black text-red-400">😔 Ya no es posible aprobar</p>
                             ) : info.passing ? (
                               <div>
-                                <p className="text-[11px] font-black text-[#10b981]">😊 Ya apruebas!</p>
-                                {projLabel && <p className={`text-[10px] font-black mt-0.5 ${gradeColor(info.acum)}`}>{projLabel}</p>}
+                                <p className="text-[13px] font-black text-[#10b981]">😊 Ya apruebas!</p>
+                                {projLabel && <p className={`text-[11px] font-black mt-0.5 ${gradeColor(info.acum)}`}>{projLabel}</p>}
                               </div>
                             ) : (
                               <div>
-                                <p className="text-[8px] font-black uppercase text-white/25 mb-0.5">Necesitas en {info.missing.join(' y ')}:</p>
+                                <p className="text-[10px] font-black uppercase text-white/25 mb-0.5">Necesitas en {info.missing.join(' y ')}:</p>
                                 <div className="flex items-baseline gap-2 flex-wrap">
-                                  <span className={`text-[18px] font-black tabular-nums ${
+                                  <span className={`text-[20px] font-black tabular-nums ${
                                     info.minEach > 18 ? 'text-[#ef4444]' :
                                     info.minEach > 13 ? 'text-[#fbbf24]' :
                                     info.minEach > 10 ? 'text-white/50' : 'text-[#34d399]'
                                   }`}>
                                     {info.minEach > 20 ? '—' : info.minEach.toFixed(1)}
                                   </span>
-                                  {info.minEach > 20 && <span className="text-[10px] font-black text-red-400">imposible</span>}
-                                  {projLabel && <span className={`text-[9px] font-black ${gradeColor(info.acum)}`}>{projLabel}</span>}
+                                  {info.minEach > 20 && <span className="text-[11px] font-black text-red-400">imposible</span>}
+                                  {projLabel && <span className={`text-[10px] font-black ${gradeColor(info.acum)}`}>{projLabel}</span>}
                                 </div>
                               </div>
                             )}
                           </div>
                           <div className="text-right flex-shrink-0 pl-2 border-l border-white/5">
-                            <p className="text-[7px] font-black uppercase text-white/20">Acum.</p>
-                            <p className={`text-[15px] font-black tabular-nums ${gradeColor(info.acum)}`}>{info.acum.toFixed(2)}</p>
+                            <p className="text-[9px] font-black uppercase text-white/20">Acum.</p>
+                            <p className={`text-[17px] font-black tabular-nums ${gradeColor(info.acum)}`}>{info.acum.toFixed(2)}</p>
                           </div>
                         </div>
                       )
@@ -1668,28 +1668,28 @@ const App = () => {
 
                 {/* ── Detalle de componentes (expandido) ── */}
                 {isOpen && (
-                  <div className="border-t border-white/5 px-4 pb-4 pt-3">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-white/20 mb-2.5">
+                  <div className="border-t border-white/5 px-5 pb-5 pt-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-3">
                       Detalle de componentes
                     </p>
                     {comps.length === 0 && (
-                      <p className="text-[10px] text-white/20 italic text-center py-4">Sin componentes disponibles</p>
+                      <p className="text-[12px] text-white/20 italic text-center py-4">Sin componentes disponibles</p>
                     )}
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       {comps.map((comp, i) => (
-                        <div key={i} className={`flex items-center justify-between py-2 px-2.5 rounded-lg ${
+                        <div key={i} className={`flex items-center justify-between py-2.5 px-3 rounded-xl ${
                           isSubComponent(comp) ? 'ml-4 border-l-2 border-accent/15 bg-white/[0.015]' : 'bg-white/[0.035]'
                         }`}>
                           <div className="flex-1 min-w-0 pr-2">
-                            <p className={`text-[10px] font-bold leading-snug ${isSubComponent(comp) ? 'text-white/40' : 'text-white/75'}`}>
+                            <p className={`text-[12px] font-bold leading-snug ${isSubComponent(comp) ? 'text-white/40' : 'text-white/75'}`}>
                               {comp.name?.replace(/^\d+_/, '').replace(/-/g, ' ') || '—'}
                             </p>
                             <div className="flex gap-2 mt-0.5">
-                              {comp.weight && <span className="text-[7px] text-white/20">Peso: {comp.weight}%</span>}
-                              {comp.mustPass === 'Sí' && <span className="text-[7px] text-yellow-400/50">Obligatorio</span>}
+                              {comp.weight && <span className="text-[10px] text-white/20">Peso: {comp.weight}%</span>}
+                              {comp.mustPass === 'Sí' && <span className="text-[10px] text-yellow-400/50">Obligatorio</span>}
                             </div>
                           </div>
-                          <span className={`text-[13px] font-black flex-shrink-0 tabular-nums ${gradeColor(comp.score)}`}>
+                          <span className={`text-[15px] font-black flex-shrink-0 tabular-nums ${gradeColor(comp.score)}`}>
                             {comp.score || '—'}
                           </span>
                         </div>
