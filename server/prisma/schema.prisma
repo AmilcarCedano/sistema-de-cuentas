@@ -80,8 +80,8 @@ model PagoMensual {
   ultimoPago  DateTime?
   mesPagado   String?   // Formato "2026-05" - mes que se pagó
   comentario  String?   @db.Text
-  cuentaId    Int
-  cuenta      Cuenta    @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  cuentaId    Int?      // billetera por defecto (opcional, el pago es global)
+  cuenta      Cuenta?   @relation(fields: [cuentaId], references: [id], onDelete: SetNull)
   grupoId     Int?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

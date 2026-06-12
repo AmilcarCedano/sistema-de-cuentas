@@ -305,6 +305,7 @@ const App = () => {
   
   const [isTxModal, setIsTxModal] = useState(false)
   const [txMode, setTxMode] = useState('create')
+  const [txOrigin, setTxOrigin] = useState('account') // 'account' (desde una billetera) | 'nav' (botón + global)
   const [txForm, setTxForm] = useState({ titulo: '', monto: '', tipo: 'ingreso', comentario: '', fecha: '', cuentaId: '', id: '', grupoId: '' })
   const originalFechaRef = useRef('')
 
@@ -325,6 +326,11 @@ const App = () => {
   const [isPagoModal, setIsPagoModal] = useState(false)
   const [pagoMode, setPagoMode] = useState('create')
   const [pagoForm, setPagoForm] = useState({ id: '', nombre: '', monto: '', diaPago: '', comentario: '', cuentaId: '', grupoId: '' })
+
+  // Pagos mensuales globales (compartidos por todas las billeteras)
+  const [pagosMensuales, setPagosMensuales] = useState([])
+  // Modal de pago: elegir billetera y categoría antes de registrar
+  const [payModal, setPayModal] = useState(null) // { pago, mesObjetivo, cuentaId, grupoId }
 
   // Notas UPAO
   const [notasUpao, setNotasUpao] = useState({ cursos: MOCK_NOTAS, updatedAt: new Date().toISOString() })
@@ -391,6 +397,15 @@ const App = () => {
     }
   }, [])
 
+  const cargarPagos = useCallback(async () => {
+    try {
+      const resp = await fetch(`${API}/pagos-mensuales`)
+      if (resp.ok) setPagosMensuales(await resp.json())
+    } catch (e) {
+      console.error('Error cargando pagos mensuales')
+    }
+  }, [])
+
   const cargarNotasUpao = useCallback(async () => {
     try {
       const resp = await fetch(`${API}/notas-upao?user=default`)
@@ -403,9 +418,9 @@ const App = () => {
   }, [])
 
   useEffect(() => {
-    Promise.all([cargarCuentas(false), cargarNotas(), cargarNotasUpao()])
+    Promise.all([cargarCuentas(false), cargarPagos(), cargarNotas(), cargarNotasUpao()])
       .finally(() => setAppReady(true))
-    const interval = setInterval(() => cargarCuentas(false), 5000)
+    const interval = setInterval(() => { cargarCuentas(false); cargarPagos() }, 5000)
     return () => clearInterval(interval)
   }, [])
 
@@ -525,8 +540,9 @@ const App = () => {
   }
 
   const handleSaveTx = async () => {
-    const cid = txForm.cuentaId || selectedAccountId
-    if (!cid) return alert('Selecciona una cuenta')
+    const cid = txForm.cuentaId || (txOrigin === 'account' ? selectedAccountId : '')
+    if (!cid) return alert('Selecciona una billetera')
+    if (!txForm.titulo.trim() || !txForm.monto) return alert('Completa el concepto y el monto')
     const finalData = { titulo: txForm.titulo, monto: parseFloat(txForm.monto), tipo: txForm.tipo, comentario: txForm.comentario || '', fecha: txForm.fecha ? new Date(txForm.fecha).toISOString() : new Date().toISOString(), grupoId: txForm.grupoId || null }
     const url = txMode === 'create' ? `${API}/cuentas/${cid}/transacciones` : `${API}/transacciones/${txForm.id}`
     
@@ -689,22 +705,22 @@ const App = () => {
     await cargarCuentas();
   }
 
-  // --- PAGOS MENSUALES ---
+  // --- PAGOS MENSUALES (GLOBALES) ---
   const handleSavePago = async () => {
-    const cid = pagoForm.cuentaId || selectedAccountId
-    if (!cid) return alert('Selecciona una cuenta')
-    const data = { nombre: pagoForm.nombre, monto: pagoForm.monto, diaPago: pagoForm.diaPago, comentario: pagoForm.comentario || '', grupoId: pagoForm.grupoId || null }
-    const url = pagoMode === 'create' ? `${API}/cuentas/${cid}/pagos-mensuales` : `${API}/pagos-mensuales/${pagoForm.id}`
+    if (!pagoForm.nombre.trim() || !pagoForm.monto || !pagoForm.diaPago) return alert('Completa nombre, monto y día de pago')
+    const data = { nombre: pagoForm.nombre, monto: pagoForm.monto, diaPago: pagoForm.diaPago, comentario: pagoForm.comentario || '', cuentaId: pagoForm.cuentaId || null }
+    const url = pagoMode === 'create' ? `${API}/pagos-mensuales` : `${API}/pagos-mensuales/${pagoForm.id}`
     const method = pagoMode === 'create' ? 'POST' : 'PUT'
     setIsPagoModal(false)
-    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pagoMode === 'edit' ? { ...data, cuentaId: cid } : data) })
-    await cargarCuentas()
+    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+    await cargarPagos()
   }
 
   const handleDeletePago = async (pagoId) => {
-    if (!confirm('¿Eliminar este pago mensual?')) return
+    if (!confirm('¿Eliminar este pago mensual? Desaparecerá de todas las billeteras.')) return
+    setPagosMensuales(prev => prev.filter(p => p.id !== pagoId))
     await fetch(`${API}/pagos-mensuales/${pagoId}`, { method: 'DELETE' })
-    await cargarCuentas()
+    await cargarPagos()
   }
 
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -720,34 +736,41 @@ const App = () => {
     return `${MESES[m - 1]} ${a}`
   }
 
-  const handlePayPago = async (pago, targetCuentaId) => {
-    const hoy = new Date()
-    const mesActualKey = getMesKey(hoy)
-    const yaPagadoEsteMes = pago.mesPagado === mesActualKey
-    const mesObjetivo = yaPagadoEsteMes ? getMesSiguiente(mesActualKey) : mesActualKey
-    const mesNombre = getMesNombre(mesObjetivo)
-    
-    if (!confirm(`¿Registrar pago de ${CURRENCY}${pago.monto} por "${pago.nombre}" para ${mesNombre}?`)) return
-    await fetch(`${API}/pagos-mensuales/${pago.id}/pagar`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cuentaId: targetCuentaId || pago.cuentaId, mesObjetivo })
-    })
-    await cargarCuentas()
+  // Abre el modal que pregunta de qué billetera sale el pago (solo billeteras activas)
+  const openPayModal = (pago, mesObjetivo) => {
+    const activas = cuentas.filter(c => c.estado !== 'cerrada')
+    if (activas.length === 0) return alert('No hay billeteras activas para registrar el pago')
+    const defaultCuenta = activas.find(c => c.id === pago.cuentaId)
+    setPayModal({ pago, mesObjetivo, cuentaId: defaultCuenta ? String(defaultCuenta.id) : '', grupoId: '' })
   }
 
-  const handlePayCurrentMonth = async (pago, targetCuentaId) => {
+  const handlePayPago = (pago) => {
     const mesActualKey = getMesKey(new Date())
-    const mesNombre = getMesNombre(mesActualKey)
-    const yaPagado = pago.mesPagado === mesActualKey
-    const msg = yaPagado
-      ? `⚠️ "${pago.nombre}" ya fue pagado en ${mesNombre}. ¿Registrar un pago adicional de ${CURRENCY}${pago.monto}?`
-      : `¿Registrar pago de ${CURRENCY}${pago.monto} por "${pago.nombre}" para ${mesNombre}?`
-    if (!confirm(msg)) return
-    await fetch(`${API}/pagos-mensuales/${pago.id}/pagar`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cuentaId: targetCuentaId || pago.cuentaId, mesObjetivo: mesActualKey })
-    })
-    await cargarCuentas()
+    const mesObjetivo = pago.mesPagado === mesActualKey ? getMesSiguiente(mesActualKey) : mesActualKey
+    openPayModal(pago, mesObjetivo)
+  }
+
+  const handlePayCurrentMonth = (pago) => {
+    openPayModal(pago, getMesKey(new Date()))
+  }
+
+  const confirmPay = async () => {
+    if (!payModal?.cuentaId) return alert('Selecciona de qué billetera sale el pago')
+    const { pago, mesObjetivo, cuentaId, grupoId } = payModal
+    setPayModal(null)
+    try {
+      const resp = await fetch(`${API}/pagos-mensuales/${pago.id}/pagar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cuentaId, mesObjetivo, grupoId: grupoId || null })
+      })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        alert(err.error || 'Error registrando el pago')
+      }
+    } catch (e) {
+      alert('Error de conexión al registrar el pago')
+    }
+    await Promise.all([cargarCuentas(), cargarPagos()])
   }
 
   const handleEditPago = (pago) => {
@@ -762,20 +785,21 @@ const App = () => {
     const diaHoy = hoy.getDate()
     const mesActualKey = getMesKey(hoy)
     const allPagos = []
-    cuentas.forEach(c => {
-      (c.pagosMensuales || []).filter(p => p.activo).forEach(p => {
-        const yaPagadoEsteMes = p.mesPagado === mesActualKey
-        const diasParaPago = p.diaPago >= diaHoy ? p.diaPago - diaHoy : 0
-        const esProximo = diasParaPago <= 5 && diasParaPago >= 0
-        const esVencido = p.diaPago < diaHoy && !yaPagadoEsteMes
-        const mesObjetivo = yaPagadoEsteMes ? getMesSiguiente(mesActualKey) : mesActualKey
-        if (!yaPagadoEsteMes && (esProximo || esVencido)) {
-          allPagos.push({ ...p, cuentaNombre: c.nombre, cuentaColor: c.color, esVencido, diasParaPago, mesObjetivo })
-        }
-      })
+    pagosMensuales.filter(p => p.activo).forEach(p => {
+      const yaPagadoEsteMes = p.mesPagado === mesActualKey
+      const diasParaPago = p.diaPago >= diaHoy ? p.diaPago - diaHoy : 0
+      const esProximo = diasParaPago <= 5 && diasParaPago >= 0
+      const esVencido = p.diaPago < diaHoy && !yaPagadoEsteMes
+      const mesObjetivo = yaPagadoEsteMes ? getMesSiguiente(mesActualKey) : mesActualKey
+      if (!yaPagadoEsteMes && (esProximo || esVencido)) {
+        allPagos.push({ ...p, esVencido, diasParaPago, mesObjetivo })
+      }
     })
     return allPagos.sort((a, b) => a.diaPago - b.diaPago)
-  }, [cuentas])
+  }, [pagosMensuales])
+
+  // Total mensual comprometido (pagos activos)
+  const totalPagosMensuales = useMemo(() => pagosMensuales.filter(p => p.activo).reduce((s, p) => s + p.monto, 0), [pagosMensuales])
 
   // --- EXCEL EXPORT (server-side premium report) ---
   const exportAllToExcel = async (targetAccountId = null) => {
@@ -832,9 +856,12 @@ const App = () => {
     return { inc, exp, net, real, diff, hasManual }
   }, [cuentas])
 
-  const txAccountId = txForm.cuentaId || selectedAccountId
+  // Si el modal se abrió desde el botón + global, NO usar la billetera seleccionada de fondo:
+  // el usuario debe elegir explícitamente en el selector
+  const txAccountId = txForm.cuentaId || (txOrigin === 'account' ? selectedAccountId : '')
   const txAccount = cuentas.find(c => String(c.id) === String(txAccountId))
   const availableGroups = txAccount?.grupos || []
+  const cuentasActivas = cuentas.filter(c => c.estado !== 'cerrada')
 
   // --- HISTORIAL SPLIT MODE ---
   // Get two arrays: one for incomes, one for expenses, aligned by category
@@ -953,6 +980,7 @@ const App = () => {
       <section className="px-2">
         <div className="flex justify-between items-center mb-4 mt-6">
           <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[#aab3cc] flex items-center gap-2"><Repeat size={14} className="text-accent" /> Pagos Mensuales</h3>
+          <button onClick={() => { setPagoMode('create'); setPagoForm({ id: '', nombre: '', monto: '', diaPago: '', comentario: '', cuentaId: '', grupoId: '' }); setIsPagoModal(true) }} className="p-2 bg-white/5 rounded-xl text-accent hover:bg-white/10 transition-all" title="Nuevo pago mensual"><PlusCircle size={18} /></button>
         </div>
 
         {pagosProximos.length > 0 && (
@@ -969,7 +997,7 @@ const App = () => {
                     </p>
                     <p className="text-sm font-bold text-white/90 mt-1">{p.nombre}</p>
                     <div className="flex items-center gap-3 mt-1.5">
-                      <span className="text-[9px] font-black text-white/30 uppercase">Día {p.diaPago} · {p.cuentaNombre}</span>
+                      <span className="text-[9px] font-black text-white/30 uppercase">Día {p.diaPago}</span>
                       <Amount val={p.monto} incognito={incognito} className="text-sm font-black text-[#ef4444]" />
                     </div>
                   </div>
@@ -984,24 +1012,30 @@ const App = () => {
           </div>
         )}
 
-        {/* All monthly payments list */}
-        <Accordion title={`Todos los Pagos (${cuentas.reduce((s, c) => s + (c.pagosMensuales || []).length, 0)})`} icon={Repeat} open={uiState.homePagos} onToggle={() => setUiState(s => ({...s, homePagos: !s.homePagos}))}>
+        {/* All monthly payments list (globales: aplican a todas las billeteras) */}
+        <Accordion title={`Todos los Pagos (${pagosMensuales.length})`} icon={Repeat} open={uiState.homePagos} onToggle={() => setUiState(s => ({...s, homePagos: !s.homePagos}))}>
           <div className="space-y-2 mt-2">
-            {cuentas.flatMap(c => (c.pagosMensuales || []).map(p => ({ ...p, cuentaNombre: c.nombre, cuentaColor: c.color }))).length === 0 && (
+            {pagosMensuales.length === 0 && (
               <p className="text-[10px] text-white/20 italic text-center py-4">No hay pagos mensuales configurados.</p>
             )}
-            {cuentas.flatMap(c => (c.pagosMensuales || []).map(p => ({ ...p, cuentaNombre: c.nombre, cuentaColor: c.color }))).map(p => {
+            {pagosMensuales.length > 0 && (
+              <div className="flex justify-between items-center px-4 py-3 bg-white/[0.03] border border-white/5 rounded-2xl mb-1">
+                <span className="text-[9px] font-black uppercase tracking-widest text-white/30">Total mensual comprometido</span>
+                <Amount val={totalPagosMensuales} incognito={incognito} className="text-sm font-black text-[#ef4444]" />
+              </div>
+            )}
+            {pagosMensuales.map(p => {
               const mesActualKey = getMesKey(new Date())
               const yaPagado = p.mesPagado === mesActualKey
               const mesSigKey = getMesSiguiente(mesActualKey)
               return (
                 <div key={p.id} className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-4 rounded-2xl border transition-all gap-2 ${yaPagado ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 bg-white/3'}`}>
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.cuentaColor }}></div>
+                    <Repeat size={14} className={`flex-shrink-0 ${yaPagado ? 'text-green-400' : 'text-accent'}`} />
                     <div className="min-w-0">
                       <p className={`text-sm font-bold ${p.activo ? 'text-white/90' : 'text-white/30 line-through'}`}>{p.nombre}</p>
                       <p className="text-[8px] font-black text-white/20 uppercase">
-                        Día {p.diaPago} · {p.cuentaNombre}
+                        Día {p.diaPago}
                         {p.mesPagado ? ` · ✅ Pagado ${getMesNombre(p.mesPagado)}` : ''}
                       </p>
                     </div>
@@ -1009,6 +1043,7 @@ const App = () => {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Amount val={p.monto} incognito={incognito} className="text-sm font-black text-[#ef4444]" />
                     <button onClick={() => handleEditPago(p)} className="p-1.5 bg-white/5 text-white/30 hover:text-white rounded-lg transition-all"><Edit3 size={12} /></button>
+                    <button onClick={() => handleDeletePago(p.id)} className="p-1.5 bg-white/5 text-white/30 hover:text-[#ef4444] rounded-lg transition-all"><Trash2 size={12} /></button>
                     {p.activo && (
                       <>
                         <button onClick={() => handlePayCurrentMonth(p)} className="px-3 py-1.5 bg-green-500/20 text-green-400 text-[9px] font-black uppercase rounded-lg hover:bg-green-500/30 transition-all">
@@ -1087,8 +1122,8 @@ const App = () => {
                     {!isCerrada ? (
                       <>
                         <div className="flex gap-3">
-                            <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'egreso', comentario: '', cuentaId: c.id, grupoId: ''}); setIsTxModal(true) }} className="flex-1 py-4 bg-[#ef4444] text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"><ArrowDownCircle size={18}/> Salida</button>
-                            <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario: '', cuentaId: c.id, grupoId: ''}); setIsTxModal(true) }} className="flex-1 py-4 bg-[#10b981] text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"><ArrowUpCircle size={18}/> Entrada</button>
+                            <button onClick={() => { setTxMode('create'); setTxOrigin('account'); setTxForm({titulo:'', monto:'', tipo:'egreso', comentario: '', cuentaId: c.id, grupoId: ''}); setIsTxModal(true) }} className="flex-1 py-4 bg-[#ef4444] text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"><ArrowDownCircle size={18}/> Salida</button>
+                            <button onClick={() => { setTxMode('create'); setTxOrigin('account'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario: '', cuentaId: c.id, grupoId: ''}); setIsTxModal(true) }} className="flex-1 py-4 bg-[#10b981] text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"><ArrowUpCircle size={18}/> Entrada</button>
                         </div>
                         <div className="flex gap-3">
                             <button onClick={() => setIsManualModal(true)} className="flex-1 py-3 bg-accent/10 border border-accent/20 text-accent text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-accent/20 transition-all"><Calculator size={16} className="inline mr-2"/> Saldo Físico</button>
@@ -1212,13 +1247,13 @@ const App = () => {
                      </Accordion>
                   )}
 
-                  {/* ── PAGOS MENSUALES ── */}
-                  <Accordion title={`Pagos Mensuales (${(c.pagosMensuales || []).length})`} icon={Repeat} open={uiState.accPagos} onToggle={() => setUiState(s => ({...s, accPagos: !s.accPagos}))}
+                  {/* ── PAGOS MENSUALES (globales: la misma lista en todas las billeteras) ── */}
+                  <Accordion title={`Pagos Mensuales (${pagosMensuales.length})`} icon={Repeat} open={uiState.accPagos} onToggle={() => setUiState(s => ({...s, accPagos: !s.accPagos}))}
                     actions={!isCerrada && <button onClick={(e) => { e.stopPropagation(); setPagoMode('create'); setPagoForm({ id: '', nombre: '', monto: '', diaPago: '', comentario: '', cuentaId: c.id, grupoId: '' }); setIsPagoModal(true) }} className="p-1.5 bg-white/5 rounded-lg text-accent hover:bg-accent/15 transition-all"><PlusCircle size={14} /></button>}
                   >
                     <div className="space-y-2 mt-2">
-                      {(c.pagosMensuales || []).length === 0 && <p className="text-[10px] text-white/20 italic text-center py-4">Sin pagos mensuales configurados.</p>}
-                      {(c.pagosMensuales || []).map(p => {
+                      {pagosMensuales.length === 0 && <p className="text-[10px] text-white/20 italic text-center py-4">Sin pagos mensuales configurados.</p>}
+                      {pagosMensuales.map(p => {
                         const mesActualKey = getMesKey(new Date())
                         const yaPagado = p.mesPagado === mesActualKey
                         const mesSigKey = getMesSiguiente(mesActualKey)
@@ -1236,8 +1271,8 @@ const App = () => {
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                               <Amount val={p.monto} incognito={incognito} className="text-sm font-black text-[#ef4444]" />
-                              <button onClick={() => handleEditPago(p)} className="p-1.5 bg-white/5 text-white/30 hover:text-white rounded-lg transition-all"><Edit3 size={12} /></button>
-                              <button onClick={() => handleDeletePago(p.id)} className="p-1.5 bg-white/5 text-white/30 hover:text-[#ef4444] rounded-lg transition-all"><Trash2 size={12} /></button>
+                              {!isCerrada && <button onClick={() => handleEditPago(p)} className="p-1.5 bg-white/5 text-white/30 hover:text-white rounded-lg transition-all"><Edit3 size={12} /></button>}
+                              {!isCerrada && <button onClick={() => handleDeletePago(p.id)} className="p-1.5 bg-white/5 text-white/30 hover:text-[#ef4444] rounded-lg transition-all"><Trash2 size={12} /></button>}
                               {p.activo && !isCerrada && (
                                 <>
                                   <button onClick={() => handlePayCurrentMonth(p)} className="px-3 py-1.5 bg-green-500/20 text-green-400 text-[9px] font-black uppercase rounded-lg hover:bg-green-500/30 transition-all">
@@ -1798,7 +1833,7 @@ const App = () => {
       <div className="fixed bottom-8 left-0 right-0 z-[60] px-4 sm:px-0 pointer-events-none">
         <nav className="max-w-[400px] mx-auto p-3 rounded-[50px] flex justify-between items-center pointer-events-auto" style={{ background:'rgba(255,255,255,0.07)', backdropFilter:'blur(32px) saturate(180%)', WebkitBackdropFilter:'blur(32px) saturate(180%)', border:'1px solid rgba(255,255,255,0.12)', boxShadow:'0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)' }}>
           <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center py-3.5 rounded-[40px] transition-all ${activeTab === 'home' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><Home size={22} /><span className="text-[8px] font-black uppercase mt-1">Métricas</span></button>
-          <button onClick={() => { setTxMode('create'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario:'', fecha: '', cuentaId: '', grupoId: ''}); setIsTxModal(true) }} className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center text-[#111] mx-2 shadow-2xl active:scale-95 transition-transform flex-shrink-0"><PlusCircle size={34} /></button>
+          <button onClick={() => { setTxMode('create'); setTxOrigin('nav'); setTxForm({titulo:'', monto:'', tipo:'ingreso', comentario:'', fecha: '', cuentaId: '', grupoId: ''}); setIsTxModal(true) }} className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center text-[#111] mx-2 shadow-2xl active:scale-95 transition-transform flex-shrink-0"><PlusCircle size={34} /></button>
           <button onClick={() => setActiveTab('wallet')} className={`flex-1 flex flex-col items-center py-3.5 rounded-[40px] transition-all ${activeTab === 'wallet' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><Wallet size={22} /><span className="text-[8px] font-black uppercase mt-1">Billeteras</span></button>
           <button onClick={() => setActiveTab('notas')} className={`flex-1 flex flex-col items-center py-3.5 rounded-[40px] transition-all ${activeTab === 'notas' ? 'bg-white text-[#0c0e14] font-black shadow-2xl' : 'text-[#aab3cc] hover:text-white'}`}><GraduationCap size={22} /><span className="text-[8px] font-black uppercase mt-1">Notas</span></button>
         </nav>
@@ -1875,9 +1910,23 @@ const App = () => {
                   {txMode === 'edit' ? <input type="datetime-local" className="w-full bg-white/5 border border-white/10 py-6 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none focus:border-accent" value={txForm.fecha} onChange={e=>setTxForm({...txForm, fecha: e.target.value})} /> : <div className="bg-white/5 border border-white/5 px-6 py-6 rounded-3xl flex items-center justify-center gap-3"><Clock size={16} className="text-accent"/><span className="text-[10px] font-black uppercase tracking-widest text-accent">Hora Auto</span></div>}
               </div>
 
+              {txMode === 'create' && (txOrigin === 'nav' || !selectedAccountId) && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3 pl-1">Billetera</p>
+                  <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-accent" value={txForm.cuentaId} onChange={e=>setTxForm({...txForm, cuentaId: e.target.value, grupoId: ''})}>
+                      <option value="" className="bg-white/[0.05]">--- SELECCIONAR BILLETERA ---</option>
+                      {cuentasActivas.map(b => <option key={b.id} value={b.id} className="bg-white/[0.05]">{b.nombre}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {txAccountId && availableGroups.length === 0 && (
+                <p className="text-[10px] text-white/25 italic pl-1">Esta billetera no tiene categorías. Puedes crearlas desde la sección "Categorías" de la billetera.</p>
+              )}
+
               {availableGroups.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3 pl-1">Categoría</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3 pl-1">Categoría de {txAccount?.nombre}</p>
                   <div className="flex flex-wrap gap-2">
                     <button 
                       onClick={() => setTxForm({...txForm, grupoId: ''})} 
@@ -1906,12 +1955,7 @@ const App = () => {
               )}
 
               <textarea placeholder="Comentario opcional..." className="w-full bg-white/5 border border-white/10 p-6 rounded-3xl outline-none focus:border-accent transition-all text-white font-medium text-sm h-28 resize-none" value={txForm.comentario} onChange={e=>setTxForm({...txForm, comentario: e.target.value})} />
-              
-              {!selectedAccountId && txMode === 'create' && <select className="w-full bg-white/5 border border-white/10 py-6 px-7 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-accent" value={txForm.cuentaId} onChange={e=>setTxForm({...txForm, cuentaId: e.target.value, grupoId: ''})}>
-                  <option value="" className="bg-white/[0.05]">--- SELECCIONAR BILLETERA ---</option>
-                  {cuentas.map(b => <option key={b.id} value={b.id} className="bg-white/[0.05]">{b.nombre}</option>)}
-              </select>}
-              
+
               <button onClick={handleSaveTx} className={`w-full py-7 font-black uppercase tracking-[0.3em] text-[10px] rounded-[35px] text-white shadow-2xl transition-all active:scale-95 ${txForm.tipo === 'ingreso' ? 'bg-[#10b981]' : 'bg-[#ef4444]'}`}>{txMode === 'create' ? 'Registrar en App' : 'Actualizar Movimiento'}</button>
           </div>
       </Modal>}
@@ -1972,49 +2016,87 @@ const App = () => {
                   <div className="relative"><span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/30 text-[10px] font-black uppercase">Día</span><input type="number" min="1" max="31" placeholder="15" className="w-full bg-white/5 border border-white/10 pl-14 py-6 rounded-3xl font-black text-2xl outline-none text-white focus:border-accent text-center" value={pagoForm.diaPago} onChange={e => setPagoForm({...pagoForm, diaPago: e.target.value})} /></div>
               </div>
               <textarea placeholder="Comentario opcional..." className="w-full bg-white/5 border border-white/10 p-6 rounded-3xl outline-none focus:border-accent transition-all text-white font-medium text-sm h-24 resize-none" value={pagoForm.comentario} onChange={e => setPagoForm({...pagoForm, comentario: e.target.value})} />
-              
-              {/* Categoría */}
-              {(() => {
-                const cid = pagoForm.cuentaId || selectedAccountId
-                const cta = cuentas.find(b => String(b.id) === String(cid))
-                const grupos = cta?.grupos || []
-                return grupos.length > 0 ? (
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-3">Categoría</p>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => setPagoForm({...pagoForm, grupoId: ''})} className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all border ${!pagoForm.grupoId ? 'bg-white/10 text-white border-white/20' : 'bg-white/3 text-white/30 border-transparent'}`}>Sin categoría</button>
-                      {grupos.map(g => (
-                        <button key={g.id} onClick={() => setPagoForm({...pagoForm, grupoId: g.id})} className="px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border" style={{
-                          backgroundColor: String(pagoForm.grupoId) === String(g.id) ? `${g.color}25` : 'rgba(255,255,255,0.03)',
-                          color: String(pagoForm.grupoId) === String(g.id) ? g.color : 'rgba(255,255,255,0.3)',
-                          borderColor: String(pagoForm.grupoId) === String(g.id) ? `${g.color}50` : 'transparent'
-                        }}>
-                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }}></span>
-                          {g.nombre}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null
-              })()}
 
-              {pagoMode === 'edit' && (
-                <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-accent" value={pagoForm.cuentaId} onChange={e => setPagoForm({...pagoForm, cuentaId: e.target.value, grupoId: ''})}>
-                    <option value="" className="bg-white/[0.05]">--- BILLETERA ---</option>
-                    {cuentas.map(b => <option key={b.id} value={b.id} className="bg-white/[0.05]">{b.nombre}</option>)}
-                </select>
-              )}
+              <div className="flex items-start gap-3 p-4 bg-accent/5 border border-accent/15 rounded-2xl">
+                <Repeat size={16} className="text-accent flex-shrink-0 mt-0.5" />
+                <p className="text-[10px] text-white/40 leading-relaxed">Este pago es <span className="text-accent font-black">global</span>: se verá en todas tus billeteras (incluso las que crees después). Al pagarlo elegirás de qué billetera sale el dinero y su categoría.</p>
+              </div>
 
-              {!selectedAccountId && pagoMode === 'create' && (
-                <select className="w-full bg-white/5 border border-white/10 py-5 px-6 rounded-3xl text-[11px] font-black uppercase text-white outline-none appearance-none cursor-pointer focus:border-accent" value={pagoForm.cuentaId} onChange={e => setPagoForm({...pagoForm, cuentaId: e.target.value, grupoId: ''})}>
-                    <option value="" className="bg-white/[0.05]">--- SELECCIONAR BILLETERA ---</option>
-                    {cuentas.map(b => <option key={b.id} value={b.id} className="bg-white/[0.05]">{b.nombre}</option>)}
-                </select>
-              )}
-              
               <button onClick={handleSavePago} className="w-full py-7 bg-white/85 font-black uppercase tracking-[0.3em] text-[10px] rounded-[35px] text-[#111] shadow-2xl transition-all active:scale-95 hover:brightness-95">{pagoMode === 'create' ? 'Crear Pago Mensual' : 'Guardar Cambios'}</button>
           </div>
       </Modal>}
+
+      {/* ── MODAL REGISTRAR PAGO MENSUAL: elegir billetera y categoría ── */}
+      {payModal && (() => {
+        const cuentaDestino = cuentasActivas.find(b => String(b.id) === String(payModal.cuentaId))
+        const gruposDestino = cuentaDestino?.grupos || []
+        const yaPagadoMes = payModal.pago.mesPagado === payModal.mesObjetivo
+        return (
+          <Modal title="Registrar Pago" onClose={() => setPayModal(null)}>
+            <div className="space-y-6">
+
+              {/* Resumen del pago */}
+              <div className="p-6 rounded-[28px] bg-white/[0.04] border border-white/10 text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-accent mb-2">{payModal.pago.nombre}</p>
+                <Amount val={payModal.pago.monto} incognito={incognito} className="text-4xl font-black text-[#ef4444]" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-2">Mes: {getMesNombre(payModal.mesObjetivo)}</p>
+              </div>
+
+              {yaPagadoMes && (
+                <div className="flex items-start gap-3 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl">
+                  <AlertCircle size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-yellow-400/80 leading-relaxed">Este pago ya fue registrado en {getMesNombre(payModal.mesObjetivo)}. Se registrará un pago <span className="font-black">adicional</span>.</p>
+                </div>
+              )}
+
+              {/* Billetera de donde sale el dinero */}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3 pl-1">¿De qué billetera sale el dinero?</p>
+                <div className="flex flex-wrap gap-2">
+                  {cuentasActivas.map(b => (
+                    <button key={b.id} onClick={() => setPayModal({...payModal, cuentaId: String(b.id), grupoId: ''})}
+                      className="px-4 py-3 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border"
+                      style={{
+                        backgroundColor: String(payModal.cuentaId) === String(b.id) ? `${b.color}25` : 'rgba(255,255,255,0.03)',
+                        color: String(payModal.cuentaId) === String(b.id) ? b.color : 'rgba(255,255,255,0.35)',
+                        borderColor: String(payModal.cuentaId) === String(b.id) ? `${b.color}60` : 'transparent',
+                        boxShadow: String(payModal.cuentaId) === String(b.id) ? `0 4px 14px ${b.color}25` : 'none'
+                      }}>
+                      <Wallet size={13} style={{ color: String(payModal.cuentaId) === String(b.id) ? b.color : 'rgba(255,255,255,0.25)' }} />
+                      {b.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Categoría de la billetera elegida (opcional) */}
+              {cuentaDestino && gruposDestino.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3 pl-1">Categoría de {cuentaDestino.nombre} (opcional)</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setPayModal({...payModal, grupoId: ''})} className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all border ${!payModal.grupoId ? 'bg-white/15 text-white border-white/20' : 'bg-white/5 text-white/30 border-transparent'}`}>Automática</button>
+                    {gruposDestino.map(g => (
+                      <button key={g.id} onClick={() => setPayModal({...payModal, grupoId: String(g.id)})} className="px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border" style={{
+                        backgroundColor: String(payModal.grupoId) === String(g.id) ? `${g.color}25` : 'rgba(255,255,255,0.03)',
+                        color: String(payModal.grupoId) === String(g.id) ? g.color : 'rgba(255,255,255,0.3)',
+                        borderColor: String(payModal.grupoId) === String(g.id) ? `${g.color}50` : 'transparent'
+                      }}>
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }}></span>
+                        {g.nombre}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button onClick={confirmPay} disabled={!payModal.cuentaId}
+                className="w-full py-6 font-black uppercase tracking-[0.3em] text-[10px] rounded-[35px] text-white shadow-2xl transition-all active:scale-95 bg-[#10b981] disabled:opacity-40 disabled:cursor-not-allowed">
+                {payModal.cuentaId ? `Confirmar pago desde ${cuentaDestino?.nombre || ''}` : 'Selecciona una billetera'}
+              </button>
+            </div>
+          </Modal>
+        )
+      })()}
 
       {/* ── MODAL VER NOTA DE TRANSACCIÓN ── */}
       {viewNoteModal && viewNoteData && (

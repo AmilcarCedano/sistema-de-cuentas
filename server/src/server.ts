@@ -107,6 +107,9 @@ app.delete('/api/grupos/:id', async (req, res) => {
 
 app.post('/api/cuentas/:id/transacciones', async (req, res) => {
   const { titulo, monto, tipo, comentario, grupoId, fecha, orden } = req.body;
+  const cuenta = await prisma.cuenta.findUnique({ where: { id: parseInt(req.params.id) } });
+  if (!cuenta) return res.status(404).json({ error: 'Cuenta no encontrada' });
+  if (cuenta.estado === 'cerrada') return res.status(400).json({ error: 'La cuenta está bloqueada: no se pueden agregar movimientos' });
   const transaccion = await prisma.transaccion.create({
     data: {
       titulo,
@@ -207,6 +210,22 @@ app.get('/api/pagos-mensuales', async (req, res) => {
   res.json(pagos);
 });
 
+// Crear pago mensual GLOBAL (visible en todas las billeteras; cuentaId opcional = billetera por defecto)
+app.post('/api/pagos-mensuales', async (req, res) => {
+  const { nombre, monto, diaPago, comentario, grupoId, cuentaId } = req.body;
+  const pago = await prisma.pagoMensual.create({
+    data: {
+      nombre,
+      monto: parseFloat(monto),
+      diaPago: parseInt(diaPago),
+      comentario: comentario || null,
+      grupoId: grupoId ? parseInt(grupoId) : null,
+      cuentaId: cuentaId ? parseInt(cuentaId) : null
+    }
+  });
+  res.json(pago);
+});
+
 app.post('/api/cuentas/:id/pagos-mensuales', async (req, res) => {
   const { nombre, monto, diaPago, comentario, grupoId } = req.body;
   const pago = await prisma.pagoMensual.create({
@@ -233,7 +252,7 @@ app.put('/api/pagos-mensuales/:id', async (req, res) => {
       comentario,
       grupoId: grupoId !== undefined ? (grupoId ? parseInt(grupoId) : null) : undefined,
       activo,
-      cuentaId: cuentaId ? parseInt(cuentaId) : undefined
+      cuentaId: cuentaId !== undefined ? (cuentaId ? parseInt(cuentaId) : null) : undefined
     }
   });
   res.json(pago);
@@ -249,8 +268,31 @@ app.post('/api/pagos-mensuales/:id/pagar', async (req, res) => {
   try {
     const pago = await prisma.pagoMensual.findUnique({ where: { id: parseInt(req.params.id) } });
     if (!pago) return res.status(404).json({ error: 'Pago no encontrado' });
-    
+
     const cuentaId = req.body.cuentaId ? parseInt(req.body.cuentaId) : pago.cuentaId;
+    if (!cuentaId) return res.status(400).json({ error: 'Debes indicar de qué billetera sale el pago' });
+
+    const cuenta = await prisma.cuenta.findUnique({ where: { id: cuentaId } });
+    if (!cuenta) return res.status(404).json({ error: 'Billetera no encontrada' });
+    if (cuenta.estado === 'cerrada') return res.status(400).json({ error: 'La billetera está bloqueada: no se pueden registrar pagos en ella' });
+
+    // Categoría: la elegida en el modal (validando que pertenezca a la billetera destino),
+    // o si no, una categoría de la billetera destino con el mismo nombre que la guardada en el pago
+    let grupoId: number | null = null;
+    if (req.body.grupoId) {
+      const g = await prisma.grupo.findUnique({ where: { id: parseInt(req.body.grupoId) } });
+      if (g && g.cuentaId === cuentaId) grupoId = g.id;
+    } else if (pago.grupoId) {
+      const grupoOriginal = await prisma.grupo.findUnique({ where: { id: pago.grupoId } });
+      if (grupoOriginal) {
+        if (grupoOriginal.cuentaId === cuentaId) grupoId = grupoOriginal.id;
+        else {
+          const match = await prisma.grupo.findFirst({ where: { cuentaId, nombre: grupoOriginal.nombre } });
+          if (match) grupoId = match.id;
+        }
+      }
+    }
+
     const mesObjetivo = req.body.mesObjetivo || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
     
     const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -266,7 +308,7 @@ app.post('/api/pagos-mensuales/:id/pagar', async (req, res) => {
           tipo: 'egreso',
           comentario: pago.comentario || `Pago mensual - ${mesNombre} ${anio} (dÃ­a ${pago.diaPago})`,
           cuentaId: cuentaId,
-          grupoId: pago.grupoId,
+          grupoId: grupoId,
           fecha: ahora
         }
       }),
