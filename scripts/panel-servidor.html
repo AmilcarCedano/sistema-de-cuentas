@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi Servidor — Panel Simple</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { background:#0c0e14; color:#fff; min-height:100vh; padding:16px; max-width:680px; margin:0 auto; }
+  h1 { font-size:18px; letter-spacing:2px; text-transform:uppercase; display:flex; align-items:center; gap:10px; }
+  .sub { font-size:11px; color:#aab3cc; margin:4px 0 18px; }
+  .card { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:24px; padding:20px; margin-bottom:14px; }
+  .card h2 { font-size:11px; text-transform:uppercase; letter-spacing:2px; color:#aab3cc; margin-bottom:12px; }
+  .big { font-size:34px; font-weight:900; line-height:1; }
+  .unit { font-size:14px; color:#aab3cc; font-weight:600; }
+  .row { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; }
+  .bar { height:14px; background:rgba(255,255,255,0.08); border-radius:10px; overflow:hidden; margin:12px 0 8px; }
+  .bar > div { height:100%; border-radius:10px; transition:width .8s ease, background .8s ease; }
+  .meta { display:flex; justify-content:space-between; font-size:12px; color:#aab3cc; flex-wrap:wrap; gap:6px; }
+  .meta b { color:#fff; }
+  .ok    { color:#10b981; } .bg-ok    { background:#10b981; }
+  .warn  { color:#f59e0b; } .bg-warn  { background:#f59e0b; }
+  .bad   { color:#ef4444; } .bg-bad   { background:#ef4444; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  td, th { padding:8px 6px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.06); }
+  th { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:#aab3cc; }
+  td:nth-child(2), td:nth-child(3), th:nth-child(2), th:nth-child(3) { text-align:right; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; margin-right:8px; }
+  .alert-box { padding:14px; border-radius:16px; font-size:13px; font-weight:700; }
+  .alert-ok  { background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); color:#10b981; }
+  .alert-bad { background:rgba(239,68,68,0.1);  border:1px solid rgba(239,68,68,0.3);  color:#ef4444; margin-bottom:8px; }
+  a.full { display:block; text-align:center; margin:20px 0; color:#3b82f6; font-size:12px; text-decoration:none; font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+  .upd { font-size:10px; color:#555e75; text-align:center; margin-top:6px; }
+</style>
+</head>
+<body>
+  <h1>🖥️ Mi Servidor</h1>
+  <p class="sub">VPS Contabo · 213.199.58.162 · vista simple en español</p>
+
+  <div class="card">
+    <h2>💾 Almacenamiento (disco principal)</h2>
+    <div class="row">
+      <span class="big" id="disk-libre">—</span>
+      <span class="unit">GB libres de <b id="disk-total">—</b> GB</span>
+    </div>
+    <div class="bar"><div id="disk-bar" style="width:0%"></div></div>
+    <div class="meta">
+      <span>Usado: <b id="disk-usado">—</b> GB</span>
+      <span>Ocupado: <b id="disk-pct">—</b>%</span>
+      <span>Arranque (/boot): <b id="boot-info">—</b></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🧠 Memoria RAM</h2>
+    <div class="row">
+      <span class="big" id="ram-usada">—</span>
+      <span class="unit">GB en uso de <b id="ram-total">—</b> GB</span>
+    </div>
+    <div class="bar"><div id="ram-bar" style="width:0%"></div></div>
+    <div class="meta">
+      <span>Disponible: <b id="ram-disp">—</b> GB</span>
+      <span>En uso: <b id="ram-pct">—</b>%</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⚙️ Procesador (CPU · 4 núcleos)</h2>
+    <div class="row">
+      <span class="big" id="cpu-pct">—</span>
+      <span class="unit">% de uso</span>
+    </div>
+    <div class="bar"><div id="cpu-bar" style="width:0%"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>📦 Mis aplicaciones (contenedores)</h2>
+    <table>
+      <thead><tr><th>Contenedor</th><th>CPU</th><th>RAM</th></tr></thead>
+      <tbody id="containers"><tr><td colspan="3">Cargando…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>🚨 Alertas del sistema</h2>
+    <div id="alerts"><div class="alert-box alert-ok">Cargando…</div></div>
+  </div>
+
+  <a class="full" href="/v3/">Ver panel completo de Netdata (avanzado, en inglés) →</a>
+  <p class="upd">Se actualiza solo cada 3 segundos · <span id="last">—</span></p>
+
+<script>
+const API = '';
+const CONTENEDORES = [
+  ['sistemacuentas-frontend', 'Sistema Cuentas (web)'],
+  ['sistemacuentas-backend',  'Sistema Cuentas (api)'],
+  ['sistemacuentas-mysql',    'Sistema Cuentas (bd)'],
+  ['cbmedic-frontend',        'CB Medic (web)'],
+  ['cbmedic-backend',         'CB Medic (api)'],
+  ['cbmedic-mysql',           'CB Medic (bd)'],
+  ['dokploy-traefik',         'Traefik (proxy https)'],
+];
+
+async function dato(chart) {
+  const r = await fetch(`${API}/api/v1/data?chart=${encodeURIComponent(chart)}&after=-3&points=1&group=average&format=json`);
+  if (!r.ok) throw new Error(chart);
+  const j = await r.json();
+  const out = {};
+  j.labels.forEach((l, i) => { if (l !== 'time') out[l] = j.data[0][i] || 0 });
+  return out;
+}
+
+function colorPct(p) { return p < 70 ? 'bg-ok' : p < 90 ? 'bg-warn' : 'bg-bad' }
+function setBar(id, pct) {
+  const el = document.getElementById(id);
+  el.style.width = Math.min(pct, 100) + '%';
+  el.className = colorPct(pct);
+}
+const f1 = n => (Math.round(n * 10) / 10).toLocaleString('es-PE');
+
+async function refrescar() {
+  try {
+    // ── Disco ──
+    const d = await dato('disk_space./');
+    const dTotal = d.avail + d.used + (d['reserved for root'] || 0);
+    const dPct = d.used / dTotal * 100;
+    document.getElementById('disk-libre').textContent = f1(d.avail);
+    document.getElementById('disk-total').textContent = f1(dTotal);
+    document.getElementById('disk-usado').textContent = f1(d.used);
+    document.getElementById('disk-pct').textContent = f1(dPct);
+    setBar('disk-bar', dPct);
+    try {
+      const b = await dato('disk_space./boot');
+      document.getElementById('boot-info').textContent = `${f1(b.avail)} GB libres`;
+    } catch { document.getElementById('boot-info').textContent = '—' }
+
+    // ── RAM (la API la da en MiB) ──
+    const r = await dato('system.ram');
+    const rTotal = (r.free + r.used + (r.cached || 0) + (r.buffers || 0)) / 1024;
+    const rUsada = r.used / 1024;
+    const rDisp = rTotal - rUsada;
+    const rPct = rUsada / rTotal * 100;
+    document.getElementById('ram-usada').textContent = f1(rUsada);
+    document.getElementById('ram-total').textContent = f1(rTotal);
+    document.getElementById('ram-disp').textContent = f1(rDisp);
+    document.getElementById('ram-pct').textContent = f1(rPct);
+    setBar('ram-bar', rPct);
+
+    // ── CPU (suma de todo lo que no es idle) ──
+    const c = await dato('system.cpu');
+    const cPct = Object.entries(c).filter(([k]) => k !== 'idle').reduce((s, [, v]) => s + v, 0);
+    document.getElementById('cpu-pct').textContent = f1(cPct);
+    setBar('cpu-bar', cPct);
+
+    // ── Contenedores ──
+    const filas = await Promise.all(CONTENEDORES.map(async ([id, nombre]) => {
+      try {
+        const [cpu, mem] = await Promise.all([dato(`cgroup_${id}.cpu`), dato(`cgroup_${id}.mem_usage`)]);
+        const cpuPct = Object.values(cpu).reduce((s, v) => s + v, 0);
+        const memMb = (mem.ram || 0) + (mem.swap || 0);
+        return `<tr><td><span class="dot"></span>${nombre}</td><td>${f1(cpuPct)}%</td><td>${f1(memMb)} MB</td></tr>`;
+      } catch {
+        return `<tr><td><span class="dot" style="background:#ef4444"></span>${nombre}</td><td colspan="2" class="bad">apagado / sin datos</td></tr>`;
+      }
+    }));
+    document.getElementById('containers').innerHTML = filas.join('');
+
+    // ── Alertas activas ──
+    const ar = await fetch(`${API}/api/v1/alarms?active`);
+    const aj = await ar.json();
+    const activas = Object.values(aj.alarms || {});
+    document.getElementById('alerts').innerHTML = activas.length === 0
+      ? '<div class="alert-box alert-ok">✅ Todo en orden — sin alertas activas</div>'
+      : activas.map(a => `<div class="alert-box alert-bad">⚠️ ${a.name.replace(/_/g,' ')} — ${a.status} (${a.chart})</div>`).join('');
+
+    document.getElementById('last').textContent = 'última actualización: ' + new Date().toLocaleTimeString('es-PE');
+  } catch (e) {
+    document.getElementById('last').textContent = '⚠️ sin conexión con Netdata — reintentando…';
+  }
+}
+refrescar();
+setInterval(refrescar, 3000);
+</script>
+</body>
+</html>
