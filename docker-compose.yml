@@ -6,6 +6,10 @@ services:
     image: mysql:8.0
     container_name: sistemacuentas-mysql
     restart: unless-stopped
+    command: >
+      --innodb-buffer-pool-size=128M
+      --innodb-log-file-size=32M
+      --innodb-flush-method=O_DIRECT
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-sistema_cuentas}
@@ -13,7 +17,7 @@ services:
       - sistemacuentas_db_data:/var/lib/mysql
     networks:
       - sistemacuentas_net
-    mem_limit: 256m
+    mem_limit: 512m
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
