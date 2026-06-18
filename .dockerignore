@@ -1,0 +1,22 @@
+# Control de versiones
+.git
+**/.git
+
+# Dependencias (se instalan dentro del contenedor)
+**/node_modules
+
+# Variables de entorno (se pasan por docker-compose)
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Código no necesario en el backend
+web/
+scraper/
+docs/
+db/
+scripts/
+
+# Archivos de desarrollo y logs
+*.log
+*.md

@@ -1,10 +1,11 @@
 version: '3.8'
 
 services:
+
   sistemacuentas-mysql:
     image: mysql:8.0
     container_name: sistemacuentas-mysql
-    restart: always
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-sistema_cuentas}
@@ -12,36 +13,71 @@ services:
       - sistemacuentas_db_data:/var/lib/mysql
     networks:
       - sistemacuentas_net
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  sistemacuentas-redis:
+    image: redis:7-alpine
+    container_name: sistemacuentas-redis
+    restart: unless-stopped
+    # maxmemory 64mb + sin persistencia (solo cola temporal con TTL 24h)
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru --save ""
+    networks:
+      - sistemacuentas_net
+    mem_limit: 96m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   sistemacuentas-backend:
     build:
       context: .
       dockerfile: server/Dockerfile
     container_name: sistemacuentas-backend
-    restart: always
+    restart: unless-stopped
     environment:
       - DATABASE_URL=mysql://root:${MYSQL_ROOT_PASSWORD}@sistemacuentas-mysql:3306/${MYSQL_DATABASE:-sistema_cuentas}
       - PORT=3001
       - NODE_ENV=production
+      - REDIS_URL=redis://sistemacuentas-redis:6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - WAHA_URL=${WAHA_URL}
+      - WAHA_API_KEY=${WAHA_API_KEY}
     depends_on:
-      - sistemacuentas-mysql
+      sistemacuentas-mysql:
+        condition: service_healthy
+      sistemacuentas-redis:
+        condition: service_healthy
     networks:
       - sistemacuentas_net
+    mem_limit: 256m
+    # permite llegar a WAHA que corre en el host del VPS (puerto 3000)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   sistemacuentas-frontend:
     build:
       context: ./web
+      args:
+        - VITE_API_URL=/api
     container_name: sistemacuentas-frontend
-    restart: always
+    restart: unless-stopped
     depends_on:
       - sistemacuentas-backend
     networks:
       - sistemacuentas_net
       - dokploy-network
+    mem_limit: 64m
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
-      # HTTP → redirige a HTTPS
+      # HTTP → HTTPS
       - "traefik.http.routers.siscuentas-web-http.rule=Host(`sistema-anderson.duckdns.org`)"
       - "traefik.http.routers.siscuentas-web-http.entrypoints=web"
       - "traefik.http.routers.siscuentas-web-http.middlewares=https-redirect"

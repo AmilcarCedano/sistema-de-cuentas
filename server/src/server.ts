@@ -1,7 +1,9 @@
-﻿import express from 'express';
+﻿import 'dotenv/config';
+import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
+import Redis from 'ioredis';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -753,6 +755,219 @@ app.post('/api/notas-upao/bookmarklet', async (req, res) => {
     res.json({ ok: true, count: arr.length });
   } catch (e: any) {
     res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+// ──────────────────────────────────────────── WHATSAPP / RECIENTES ────────────────────────────────────────────
+
+const WAHA_URL = process.env.WAHA_URL || 'http://localhost:3000';
+const WAHA_KEY = process.env.WAHA_API_KEY || 'anderson-waha-local-2026';
+const WAHA_SESSION = 'default';
+const WAHA_GROUP_ID = process.env.WAHA_GROUP_ID || '';
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const WA_TTL = 86400; // pendientes expiran en 24h
+
+const redis = new Redis(REDIS_URL, { lazyConnect: true, enableOfflineQueue: false });
+redis.connect().catch(() => console.warn('[Redis] No disponible, usando memoria'));
+
+type Pendiente = {
+  id: string; monto: number | null; montoRaw: string;
+  chatId: string; messageId: string; timestamp: string; procesando: boolean;
+};
+
+async function redisSavePendiente(p: Pendiente) {
+  try { await redis.set(`wa:p:${p.id}`, JSON.stringify(p), 'EX', WA_TTL); } catch {}
+}
+async function redisDeletePendiente(id: string) {
+  try { await redis.del(`wa:p:${id}`); } catch {}
+}
+async function redisGetAllPendientes(): Promise<Pendiente[]> {
+  try {
+    const keys = await redis.keys('wa:p:*');
+    if (!keys.length) return [];
+    const vals = await redis.mget(...keys);
+    return vals.filter(Boolean).map(v => JSON.parse(v!));
+  } catch { return []; }
+}
+async function redisGetActivo(): Promise<boolean> {
+  try { return (await redis.get('wa:activo')) !== '0'; } catch { return true; }
+}
+async function redisSetActivo(v: boolean) {
+  try { await redis.set('wa:activo', v ? '1' : '0'); } catch {}
+}
+
+async function extraerMonto(base64: string, mimeType: string): Promise<{ monto: number | null; raw: string }> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return { monto: null, raw: 'Sin API key' };
+  const resp = await fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-goog-api-key': key },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { text: 'Extrae el monto principal de este comprobante de pago (puede ser Yape, Plin, Bim, Banco de la Nación u otro). Responde ÚNICAMENTE con el número decimal, sin símbolo ni texto. Ejemplo: 25.50. Si no puedes determinarlo responde NO_DETECTADO.' },
+          { inlineData: { mimeType, data: base64.replace(/^data:[^;]+;base64,/, '') } }
+        ]}],
+        generationConfig: { temperature: 0, maxOutputTokens: 30, thinkingConfig: { thinkingBudget: 0 } }
+      })
+    }
+  );
+  const data = await resp.json() as any;
+  if (!resp.ok) {
+    console.error('[Gemini] Error:', resp.status, JSON.stringify(data).slice(0, 200));
+    return { monto: null, raw: `Error ${resp.status}` };
+  }
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+  if (!raw || raw === 'NO_DETECTADO') return { monto: null, raw: raw || 'Sin respuesta' };
+  const monto = parseFloat(raw.replace(',', '.'));
+  return { monto: isNaN(monto) ? null : monto, raw };
+}
+
+function eliminarMediaWAHA(mediaUrl: string) {
+  if (!mediaUrl) return;
+  const filename = mediaUrl.split('/').pop();
+  if (!filename) return;
+  fetch(`${WAHA_URL}/api/files/${WAHA_SESSION}/${filename}`, {
+    method: 'DELETE', headers: { 'X-Api-Key': WAHA_KEY }
+  }).catch(() => {});
+}
+
+// ── GET /api/whatsapp/activo
+app.get('/api/whatsapp/activo', async (_req, res) => {
+  res.json({ activo: await redisGetActivo() });
+});
+
+// ── POST /api/whatsapp/activo  { activo: boolean }
+app.post('/api/whatsapp/activo', async (req, res) => {
+  const { activo } = req.body;
+  await redisSetActivo(!!activo);
+  res.json({ ok: true, activo: !!activo });
+});
+
+// ── GET /api/whatsapp/pendientes
+app.get('/api/whatsapp/pendientes', async (_req, res) => {
+  const lista = await redisGetAllPendientes();
+  res.json(lista.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+});
+
+// ── POST /api/whatsapp/pendientes/:id/aceptar
+app.post('/api/whatsapp/pendientes/:id/aceptar', async (req, res) => {
+  const lista = await redisGetAllPendientes();
+  const pendiente = lista.find(p => p.id === req.params.id);
+  if (!pendiente) return res.status(404).json({ error: 'No encontrado' });
+  const { cuentaId, grupoId, titulo, monto: montoOverride } = req.body;
+  const montoFinal = montoOverride ? parseFloat(montoOverride) : pendiente.monto;
+  if (!montoFinal) return res.status(400).json({ error: 'Monto no válido' });
+  try {
+    await prisma.transaccion.create({
+      data: {
+        titulo: (titulo || 'Pago recibido').trim(),
+        monto: montoFinal,
+        tipo: 'ingreso',
+        comentario: `WhatsApp · S/${montoFinal}`,
+        cuentaId: parseInt(cuentaId),
+        grupoId: grupoId ? parseInt(grupoId) : null,
+        fecha: new Date(pendiente.timestamp),
+        orden: 0
+      }
+    });
+    // Reaccionar con ✅ en WhatsApp
+    fetch(`${WAHA_URL}/api/reaction`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': WAHA_KEY },
+      body: JSON.stringify({ session: WAHA_SESSION, messageId: pendiente.messageId, reaction: '✅' })
+    }).catch(() => {});
+    await redisDeletePendiente(req.params.id);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── DELETE /api/whatsapp/pendientes/:id  (rechazar — sin acción en WA)
+app.delete('/api/whatsapp/pendientes/:id', async (req, res) => {
+  await redisDeletePendiente(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── POST /api/whatsapp/webhook
+app.post('/api/whatsapp/webhook', async (req, res) => {
+  res.json({ ok: true });
+  try {
+    if (!await redisGetActivo()) return; // flujo desactivado
+
+    const body = req.body;
+    const event: string = body.event || body.type || '';
+    const payload = body.payload || body.data || body;
+
+    if (event !== 'message') return;
+
+    const chatId: string = payload.from || payload.chatId || '';
+
+    // Solo mensajes del grupo configurado (ignora privados y otros grupos)
+    if (WAHA_GROUP_ID && chatId !== WAHA_GROUP_ID) return;
+
+    // Solo imágenes (descarta texto, audio, video, stickers, etc.)
+    const hasMedia: boolean = payload.hasMedia === true || payload.hasMedia === 'true';
+    const mediaType: string = (payload.mediaType || payload.type || payload._data?.Info?.MediaType || '').toLowerCase();
+    if (!hasMedia || mediaType !== 'image') return;
+
+    const messageId: string = payload.id || '';
+    const id = crypto.randomUUID();
+    const pendiente: Pendiente = { id, monto: null, montoRaw: '', chatId, messageId, timestamp: new Date().toISOString(), procesando: true };
+    await redisSavePendiente(pendiente);
+
+    let base64: string | null = null;
+    let mimeType = payload.mimetype || payload.media?.mimetype || 'image/jpeg';
+    const mediaUrl: string = payload.media?.url || payload.mediaUrl || '';
+
+    if (mediaUrl) {
+      const r = await fetch(mediaUrl, { headers: { 'X-Api-Key': WAHA_KEY } });
+      if (r.ok) {
+        const buf = Buffer.from(await r.arrayBuffer());
+        base64 = buf.toString('base64');
+        mimeType = (r.headers.get('content-type') || mimeType).split(';')[0];
+        eliminarMediaWAHA(mediaUrl); // liberar almacenamiento una vez leída
+      }
+    }
+
+    if (!base64 && payload.body && typeof payload.body === 'string' && payload.body.length > 500) {
+      base64 = payload.body.replace(/^data:[^;]+;base64,/, '');
+    }
+
+    if (!base64 && chatId) {
+      const shortId = messageId.split('_')[2] || messageId;
+      const r = await fetch(
+        `${WAHA_URL}/api/${WAHA_SESSION}/chats/${encodeURIComponent(chatId)}/messages?limit=20&downloadMedia=true&sortOrder=desc`,
+        { headers: { 'X-Api-Key': WAHA_KEY } }
+      );
+      if (r.ok) {
+        const msgs = await r.json() as any[];
+        const msg = msgs.find((m: any) => m.id === messageId || m.id?.includes(shortId));
+        if (msg?.media?.url) {
+          const r2 = await fetch(msg.media.url, { headers: { 'X-Api-Key': WAHA_KEY } });
+          if (r2.ok) {
+            const buf = Buffer.from(await r2.arrayBuffer());
+            base64 = buf.toString('base64');
+            mimeType = (r2.headers.get('content-type') || mimeType).split(';')[0];
+            eliminarMediaWAHA(msg.media.url);
+          }
+        }
+      }
+    }
+
+    if (!base64) {
+      await redisSavePendiente({ ...pendiente, procesando: false });
+      console.error('[WA] No se pudo obtener imagen para', messageId);
+      return;
+    }
+
+    const { monto, raw } = await extraerMonto(base64, mimeType);
+    await redisSavePendiente({ ...pendiente, monto, montoRaw: raw, procesando: false });
+    console.log(`[WA] S/${monto} detectado (raw: "${raw}")`);
+  } catch (e: any) {
+    console.error('[WA Webhook]', e.message);
   }
 });
 

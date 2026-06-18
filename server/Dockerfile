@@ -5,8 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     && rm -rf /var/lib/apt/lists/*
 
+# Instalar dependencias primero (capa cacheada si package.json no cambia)
 COPY server/package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 

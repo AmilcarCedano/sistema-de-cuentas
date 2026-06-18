@@ -6,7 +6,7 @@ import {
   TrendingUp, TrendingDown, Layers, FolderPlus, Tag, Settings, Clock, Calendar,
   Eye, EyeOff, ShieldCheck, Target, BarChart3, Calculator, ArrowLeftRight, Filter, AlertCircle, CheckCircle,
   GripVertical, LayoutGrid, ArrowDownAZ, ArrowDown01, Palette,
-  Lock, Unlock, Bell, Repeat, GraduationCap
+  Lock, Unlock, Bell, Repeat, GraduationCap, MessageSquare, Settings2
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 // API URL: uses proxy in dev and env in prod
@@ -332,6 +332,15 @@ const App = () => {
   // Modal de pago: elegir billetera y categoría antes de registrar
   const [payModal, setPayModal] = useState(null) // { pago, mesObjetivo, cuentaId, grupoId }
 
+  // WhatsApp Recientes
+  const [recientesWA, setRecientesWA] = useState([])
+  const [waActivo, setWaActivo] = useState(false)
+  const [waConfig, setWaConfig] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('wa_config') || '{}') } catch { return {} }
+  })
+  const [waConfigModal, setWaConfigModal] = useState(false)
+  const [aceptarModal, setAceptarModal] = useState(null) // { pendiente, monto, cuentaId, grupoId, titulo }
+
   // Notas UPAO
   const [notasUpao, setNotasUpao] = useState({ cursos: MOCK_NOTAS, updatedAt: new Date().toISOString() })
   const [expandedCourse, setExpandedCourse] = useState(null)
@@ -406,6 +415,17 @@ const App = () => {
     }
   }, [])
 
+  const cargarRecientes = useCallback(async () => {
+    try {
+      const [rP, rA] = await Promise.all([
+        fetch(`${API}/whatsapp/pendientes`),
+        fetch(`${API}/whatsapp/activo`)
+      ])
+      if (rP.ok) setRecientesWA(await rP.json())
+      if (rA.ok) { const d = await rA.json(); setWaActivo(d.activo) }
+    } catch {}
+  }, [])
+
   const cargarNotasUpao = useCallback(async () => {
     try {
       const resp = await fetch(`${API}/notas-upao?user=default`)
@@ -418,9 +438,9 @@ const App = () => {
   }, [])
 
   useEffect(() => {
-    Promise.all([cargarCuentas(false), cargarPagos(), cargarNotas(), cargarNotasUpao()])
+    Promise.all([cargarCuentas(false), cargarPagos(), cargarNotas(), cargarNotasUpao(), cargarRecientes()])
       .finally(() => setAppReady(true))
-    const interval = setInterval(() => { cargarCuentas(false); cargarPagos() }, 5000)
+    const interval = setInterval(() => { cargarCuentas(false); cargarPagos(); cargarRecientes() }, 5000)
     return () => clearInterval(interval)
   }, [])
 
@@ -954,6 +974,80 @@ const App = () => {
       )}
 
       <button onClick={handleExportWithPrompt} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 p-6 rounded-[35px] flex items-center justify-center gap-3 text-xs font-black text-white/80 transition-all active:scale-95 shadow-lg"><Download size={20} className="text-accent" /> Descargar Excel Completo</button>
+
+      {/* ── RECIENTES WHATSAPP ── */}
+      <section className="px-2">
+        <div className="flex justify-between items-center mb-3 mt-2">
+          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[#aab3cc] flex items-center gap-2">
+            <MessageSquare size={14} className={waActivo ? 'text-[#25d366]' : 'text-white/20'} /> Recientes WhatsApp
+          </h3>
+          <div className="flex items-center gap-2">
+            {/* Toggle activar/desactivar flujo */}
+            <button
+              onClick={async () => {
+                const nuevo = !waActivo
+                await fetch(`${API}/whatsapp/activo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: nuevo }) })
+                setWaActivo(nuevo)
+              }}
+              className={`relative w-9 h-5 rounded-full transition-colors ${waActivo ? 'bg-[#25d366]' : 'bg-white/10'}`}
+              title={waActivo ? 'Desactivar detección' : 'Activar detección'}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${waActivo ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </button>
+            <button onClick={() => setWaConfigModal(true)} className="p-2 bg-white/5 rounded-xl text-white/30 hover:text-white hover:bg-white/10 transition-all" title="Configurar">
+              <Settings2 size={16} />
+            </button>
+          </div>
+        </div>
+        {!waActivo && (
+          <p className="text-[10px] text-white/20 italic text-center py-2">Detección desactivada</p>
+        )}
+        {waActivo && recientesWA.length === 0 && (
+          <p className="text-[10px] text-white/15 italic text-center py-3">Sin registros pendientes</p>
+        )}
+        {recientesWA.length > 0 && (
+          <div className="space-y-2">
+            {recientesWA.map(p => (
+              <div key={p.id} className="flex items-center justify-between p-4 rounded-2xl border border-[#25d366]/15 bg-[#25d366]/5 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <MessageSquare size={16} className="text-[#25d366] flex-shrink-0" />
+                  <div className="min-w-0">
+                    {p.procesando ? (
+                      <p className="text-xs font-bold text-white/50 animate-pulse">Analizando imagen...</p>
+                    ) : p.monto !== null ? (
+                      <p className="text-base font-black text-[#10b981]">S/ {p.monto.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
+                    ) : (
+                      <p className="text-xs font-bold text-yellow-400/70">Monto no detectado</p>
+                    )}
+                    <p className="text-[8px] text-white/20 mt-0.5 truncate">{new Date(p.timestamp).toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  {!p.procesando && p.monto !== null && (
+                    <button
+                      onClick={() => setAceptarModal({
+                        pendiente: p,
+                        monto: p.monto,
+                        cuentaId: waConfig.cuentaId || '',
+                        grupoId: waConfig.grupoId || '',
+                        titulo: waConfig.titulo || 'Pago recibido'
+                      })}
+                      className="px-3 py-1.5 bg-[#10b981] text-white text-[9px] font-black uppercase rounded-xl hover:bg-[#059669] transition-all active:scale-95"
+                    >Aceptar</button>
+                  )}
+                  <button
+                    onClick={async () => {
+                      await fetch(`${API}/whatsapp/pendientes/${p.id}`, { method: 'DELETE' })
+                      setRecientesWA(prev => prev.filter(r => r.id !== p.id))
+                    }}
+                    className="px-3 py-1.5 bg-white/5 text-white/40 hover:text-red-400 text-[9px] font-black uppercase rounded-xl transition-all"
+                  >Rechazar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="px-2">
         <div className="flex justify-between items-center mb-4 mt-6">
@@ -2183,6 +2277,102 @@ const App = () => {
           </div>
         </div>
       )}
+
+      {/* ── MODAL CONFIG WHATSAPP ── */}
+      {waConfigModal && (() => {
+        const cuenta = cuentas.find(c => String(c.id) === String(waConfig.cuentaId))
+        return (
+          <Modal title="Configurar Recientes WhatsApp" onClose={() => setWaConfigModal(false)}>
+            <div className="space-y-5">
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 block">Billetera destino</label>
+                <select value={waConfig.cuentaId || ''} onChange={e => setWaConfig(p => ({ ...p, cuentaId: e.target.value, grupoId: '' }))}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent/50">
+                  <option value="">— Elegir billetera —</option>
+                  {cuentas.filter(c => c.estado !== 'cerrada').map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 block">Categoría</label>
+                <select value={waConfig.grupoId || ''} onChange={e => setWaConfig(p => ({ ...p, grupoId: e.target.value }))}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent/50">
+                  <option value="">— Sin categoría —</option>
+                  {(cuenta?.grupos || []).map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 block">Nombre del registro</label>
+                <input value={waConfig.titulo || ''} onChange={e => setWaConfig(p => ({ ...p, titulo: e.target.value }))}
+                  placeholder="Yape recibido"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent/50" />
+              </div>
+              <button onClick={() => { localStorage.setItem('wa_config', JSON.stringify(waConfig)); setWaConfigModal(false) }}
+                className="w-full py-4 bg-accent text-white font-black text-sm uppercase rounded-2xl hover:bg-accent/80 transition-all active:scale-95">
+                Guardar configuración
+              </button>
+            </div>
+          </Modal>
+        )
+      })()}
+
+      {/* ── MODAL ACEPTAR RECIENTE ── */}
+      {aceptarModal && (() => {
+        const cuenta = cuentas.find(c => String(c.id) === String(aceptarModal.cuentaId))
+        return (
+          <Modal title="Confirmar ingreso" onClose={() => setAceptarModal(null)}>
+            <div className="space-y-5">
+              <div className="p-4 bg-[#10b981]/10 border border-[#10b981]/20 rounded-2xl">
+                <p className="text-[9px] font-black uppercase text-[#10b981]/60 mb-2 text-center">Monto detectado — edita si es necesario</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[#10b981] font-black text-xl">S/</span>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={aceptarModal.monto ?? ''}
+                    onChange={e => setAceptarModal(p => ({ ...p, monto: parseFloat(e.target.value) || null }))}
+                    className="flex-1 bg-transparent border-b border-[#10b981]/40 text-[#10b981] text-2xl font-black text-center focus:outline-none focus:border-[#10b981]"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 block">Nombre del registro</label>
+                <input value={aceptarModal.titulo} onChange={e => setAceptarModal(p => ({ ...p, titulo: e.target.value }))}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent/50" />
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 block">Billetera</label>
+                <select value={aceptarModal.cuentaId} onChange={e => setAceptarModal(p => ({ ...p, cuentaId: e.target.value, grupoId: '' }))}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent/50">
+                  <option value="">— Elegir billetera —</option>
+                  {cuentas.filter(c => c.estado !== 'cerrada').map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 block">Categoría</label>
+                <select value={aceptarModal.grupoId} onChange={e => setAceptarModal(p => ({ ...p, grupoId: e.target.value }))}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent/50">
+                  <option value="">— Sin categoría —</option>
+                  {(cuenta?.grupos || []).map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+                </select>
+              </div>
+              <button
+                disabled={!aceptarModal.cuentaId || !aceptarModal.monto}
+                onClick={async () => {
+                  const resp = await fetch(`${API}/whatsapp/pendientes/${aceptarModal.pendiente.id}/aceptar`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cuentaId: aceptarModal.cuentaId, grupoId: aceptarModal.grupoId || null, titulo: aceptarModal.titulo, monto: aceptarModal.monto })
+                  })
+                  if (resp.ok) {
+                    setAceptarModal(null)
+                    await Promise.all([cargarCuentas(), cargarRecientes()])
+                  }
+                }}
+                className="w-full py-4 bg-[#10b981] text-white font-black text-sm uppercase rounded-2xl hover:bg-[#059669] transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed">
+                ✅ Confirmar ingreso
+              </button>
+            </div>
+          </Modal>
+        )
+      })()}
     </div>
   )
 }
